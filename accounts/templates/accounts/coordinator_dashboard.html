@@ -1,0 +1,684 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load humanize %}
+{% load time_extras %}
+
+{% block title %}Coordinator Dashboard{% endblock %}
+
+{% block content %}
+<style>
+    .task-action-btn[disabled],
+    button[disabled] {
+        opacity: 0.6 !important;
+        cursor: not-allowed !important;
+        pointer-events: none !important;
+    }
+
+    :root {
+        --jira-blue: #0052cc;
+        --jira-blue-light: #deebff;
+        --jira-gray-100: #f4f5f7;
+        --jira-gray-200: #ebecf0;
+        --jira-gray-300: #dfe1e6;
+        --jira-gray-700: #5e6c84;
+        --jira-gray-900: #172b4d;
+    }
+
+    body {
+        background-color: #f8f9fa;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+    }
+
+    /* Navigation Tabs */
+    .summary-nav {
+        display: flex;
+        gap: 0;
+        border-bottom: 2px solid var(--jira-gray-200);
+        padding: 0 24px;
+        background-color: #fff;
+        margin-bottom: 24px;
+    }
+
+    .summary-nav-item {
+        padding: 12px 16px;
+        color: var(--jira-gray-700);
+        text-decoration: none;
+        font-size: 14px;
+        font-weight: 500;
+        border-bottom: 2px solid transparent;
+        margin-bottom: -2px;
+        transition: all 0.2s;
+    }
+
+    .summary-nav-item:hover {
+        color: var(--jira-blue);
+        background-color: var(--jira-gray-100);
+    }
+
+    .summary-nav-item.active {
+        color: var(--jira-blue);
+        border-bottom-color: var(--jira-blue);
+    }
+
+    /* Content Padding */
+    .summary-content {
+        padding: 0 24px 24px;
+    }
+
+    /* Enhanced Card Styles */
+    .stat-card {
+        border-radius: 12px;
+        border: none;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        transition: all 0.3s ease;
+        height: 100%;
+    }
+
+    .stat-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 8px 16px rgba(0,0,0,0.12);
+    }
+
+    .stat-card-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 24px;
+        margin-bottom: 12px;
+    }
+
+    /* Color Schemes for Cards */
+    .card-primary { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+    .card-success { background: linear-gradient(135deg, #56ab2f 0%, #a8e063 100%); }
+    .card-warning { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); }
+    .card-info { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); }
+    .card-danger { background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); }
+    .card-secondary { background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%); }
+
+    /* Chart Container */
+    .chart-container {
+        position: relative;
+        height: 300px;
+        cursor: pointer;
+    }
+
+    .chart-container-large {
+        position: relative;
+        height: 350px;
+    }
+
+    /* School/Department List */
+    .department-list {
+        max-height: 350px;
+        overflow-y: auto;
+    }
+
+    .school-item {
+        padding: 12px;
+        border-radius: 8px;
+        margin-bottom: 8px;
+        background: #fff;
+        border: 1px solid var(--jira-gray-200);
+        transition: all 0.2s;
+        cursor: pointer;
+    }
+
+    .school-item:hover {
+        border-color: var(--jira-blue);
+        background: var(--jira-blue-light);
+        transform: translateX(4px);
+    }
+
+    .school-item.active {
+        border-color: var(--jira-blue);
+        background: var(--jira-blue-light);
+        font-weight: 600;
+    }
+
+    /* Project Timeline */
+    .timeline-item {
+        padding: 16px;
+        border-left: 3px solid var(--jira-gray-300);
+        margin-bottom: 16px;
+        background: #fff;
+        border-radius: 8px;
+        position: relative;
+        margin-left: 12px;
+    }
+
+    .timeline-item::before {
+        content: '';
+        width: 12px;
+        height: 12px;
+        background: var(--jira-blue);
+        border-radius: 50%;
+        position: absolute;
+        left: -8px;
+        top: 20px;
+    }
+
+    .timeline-item.ongoing::before { background: #28a745; }
+    .timeline-item.upcoming::before { background: #ffc107; }
+    .timeline-item.completed::before { background: #6c757d; }
+
+    /* Task Cards - MATCHING SUMMARY PAGE STYLE */
+    .task-card {
+        border-left: 4px solid #dee2e6;
+        transition: all 0.3s ease;
+        background: #fff;
+        border-radius: 8px;
+    }
+    
+    .task-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1) !important;
+    }
+    
+    .task-card.todo-card { border-left-color: #ffc107; }
+    .task-card.progress-card { border-left-color: #0d6efd; }
+    .task-card.done-card { border-left-color: #198754; }
+    
+    /* Task Info Styles */
+    .task-info {
+        font-size: 0.875rem;
+        color: #6c757d;
+        margin: 8px 0;
+    }
+    
+    .task-info strong {
+        color: #495057;
+    }
+
+    /* Kanban Headers */
+    .kanban-column-header {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        margin-bottom: 16px;
+        padding: 14px 12px;
+        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+        border-radius: 8px;
+        font-weight: 600;
+        min-height: 50px;
+        font-size: 1rem;
+    }
+
+    .kanban-column-header.todo { 
+        background: linear-gradient(135deg, #ffe07b 0%, #ffad14 100%); 
+        color: white;
+    }
+
+    .kanban-column-header.progress { 
+        background: linear-gradient(135deg, #a29bfe 0%, #6c5ce7 100%); 
+        color: white; 
+    }
+
+    .kanban-column-header.done { 
+        background: linear-gradient(135deg, #55efc4 0%, #00b894 100%); 
+        color: white;
+    }
+
+    /* Section Headers */
+    .section-header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 20px;
+        padding-bottom: 12px;
+        border-bottom: 2px solid var(--jira-gray-200);
+    }
+
+    .section-header i {
+        font-size: 24px;
+        color: var(--jira-blue);
+    }
+
+    .section-header h5 {
+        margin: 0;
+        font-weight: 600;
+        color: var(--jira-gray-900);
+    }
+
+    /* Filter Buttons */
+    .filter-btn-group {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    .filter-btn {
+        padding: 8px 16px;
+        border: 2px solid var(--jira-gray-300);
+        background: #fff;
+        border-radius: 20px;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .filter-btn:hover {
+        border-color: var(--jira-blue);
+        background: var(--jira-blue-light);
+    }
+
+    .filter-btn.active {
+        border-color: var(--jira-blue);
+        background: var(--jira-blue);
+        color: white;
+    }
+
+    /* Scrollbar Styling */
+    .department-list::-webkit-scrollbar,
+    .timeline-scroll::-webkit-scrollbar {
+        width: 8px;
+    }
+
+    .department-list::-webkit-scrollbar-track,
+    .timeline-scroll::-webkit-scrollbar-track {
+        background: var(--jira-gray-100);
+        border-radius: 4px;
+    }
+
+    .department-list::-webkit-scrollbar-thumb,
+    .timeline-scroll::-webkit-scrollbar-thumb {
+        background: var(--jira-gray-300);
+        border-radius: 4px;
+    }
+
+    .department-list::-webkit-scrollbar-thumb:hover,
+    .timeline-scroll::-webkit-scrollbar-thumb:hover {
+        background: var(--jira-gray-700);
+    }
+
+    /* Responsive adjustments */
+    @media (max-width: 768px) {
+        .chart-container {
+            height: 250px;
+        }
+        
+        .stat-card-icon {
+            width: 40px;
+            height: 40px;
+            font-size: 20px;
+        }
+    }
+</style>
+
+<!-- Page Header -->
+<div class="d-flex align-items-center mb-4">
+    <h5 class="fw-bold mb-0 me-2">Coordinator Dashboard</h5>
+    <i class="fas fa-chevron-right text-muted"></i>
+    <h5 class="fw-bold mb-0 ms-2 text-primary">
+        {% if current_project %}
+            {{ current_project.name }}
+        {% elif selected_school %}
+            {{ selected_school.name }}
+        {% else %}
+            Overview
+        {% endif %}
+    </h5>
+    {% if selected_school %}
+        <a href="{% url 'accounts:coordinator_dashboard' %}" class="btn btn-sm btn-outline-secondary ms-3">
+            <i class="fas fa-times me-1"></i>Clear Filter
+        </a>
+    {% endif %}
+</div>
+
+<!-- Navigation Tabs -->
+<div class="summary-nav">
+    <a class="summary-nav-item {% if request.resolver_match.url_name == 'coordinator_dashboard' %}active{% endif %}"
+        href="{% url 'accounts:coordinator_dashboard' %}{% if current_project %}?project={{ current_project.id }}{% endif %}">
+        Summary
+    </a>
+    <a class="summary-nav-item {% if active_tab == 'backlog' %}active{% endif %}" 
+       href="{% url 'accounts:backlog_page' %}{% if current_project %}?project={{ current_project.id }}{% endif %}">
+        Backlog
+    </a>
+    <a class="summary-nav-item {% if active_tab == 'board' %}active{% endif %}" 
+       href="{% url 'accounts:board_page' %}{% if current_project %}?project={{ current_project.id }}{% endif %}">
+        Board
+    </a>
+</div>
+
+<!-- Content -->
+<div class="summary-content">
+    
+    <!-- Top Statistics Row - Single Line -->
+    <div class="row g-3 mb-4">
+        <div class="col-lg-2 col-md-4 col-sm-6">
+            <div class="card stat-card">
+                <div class="card-body text-center">
+                    <div class="stat-card-icon card-primary text-white mx-auto">
+                        <i class="fas fa-project-diagram"></i>
+                    </div>
+                    <h3 class="mb-1 fw-bold">{{ total_projects }}</h3>
+                    <p class="text-muted small mb-0">Total Projects</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-2 col-md-4 col-sm-6">
+            <div class="card stat-card">
+                <div class="card-body text-center">
+                    <div class="stat-card-icon card-success text-white mx-auto">
+                        <i class="fas fa-spinner fa-spin"></i>
+                    </div>
+                    <h3 class="mb-1 fw-bold">{{ ongoing_projects }}</h3>
+                    <p class="text-muted small mb-0">Ongoing</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-2 col-md-4 col-sm-6">
+            <div class="card stat-card">
+                <div class="card-body text-center">
+                    <div class="stat-card-icon card-warning text-white mx-auto">
+                        <i class="fas fa-calendar-alt"></i>
+                    </div>
+                    <h3 class="mb-1 fw-bold">{{ upcoming_projects }}</h3>
+                    <p class="text-muted small mb-0">Upcoming</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-2 col-md-4 col-sm-6">
+            <div class="card stat-card">
+                <div class="card-body text-center">
+                    <div class="stat-card-icon card-info text-white mx-auto">
+                        <i class="fas fa-check-circle"></i>
+                    </div>
+                    <h3 class="mb-1 fw-bold">{{ completed_projects }}</h3>
+                    <p class="text-muted small mb-0">Completed</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-2 col-md-4 col-sm-6">
+            <div class="card stat-card">
+                <div class="card-body text-center">
+                    <div class="stat-card-icon card-danger text-white mx-auto">
+                        <i class="fas fa-building"></i>
+                    </div>
+                    <h3 class="mb-1 fw-bold">{{ total_schools }}</h3>
+                    <p class="text-muted small mb-0">Schools</p>
+
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-2 col-md-4 col-sm-6">
+            <div class="card stat-card">
+                <div class="card-body text-center">
+                    <div class="stat-card-icon card-secondary text-white mx-auto">
+                        <i class="fas fa-users"></i>
+                    </div>
+                    <h3 class="mb-1 fw-bold">{{ total_teams }}</h3>
+                    <p class="text-muted small mb-0">Total Teams</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Three Cards Section: School Distribution + Schools + Timeline -->
+    <div class="row g-4 mb-4">
+        <!-- School-wise Project Distribution Chart -->
+        <div class="col-lg-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <div class="section-header">
+                        <i class="fas fa-chart-bar"></i>
+                        <h5>School-wise Project Distribution</h5>
+                    </div>
+                    <div class="chart-container-large">
+                        <canvas id="schoolChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Schools List -->
+        <div class="col-lg-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <div class="section-header">
+                        <i class="fas fa-university"></i>
+                        <h5>Schools</h5>
+                    </div>
+                    <div class="department-list">
+                        {% for school in schools %}
+                        <div class="school-item {% if selected_school and selected_school.id == school.id %}active{% endif %}" 
+                             onclick="filterBySchool('{{ school.id }}', '{{ school.name }}')">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <strong>{{ school.name }}</strong>
+                                </div>
+                                <div class="text-end">
+                                    <span class="badge bg-primary">{{ school.project_count }}</span>
+                                    <br>
+                                    <small class="text-muted">projects</small>
+                                </div>
+                            </div>
+                        </div>
+                        {% empty %}
+                        <p class="text-muted text-center">No schools found</p>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Project Timeline -->
+        <div class="col-lg-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <div class="section-header">
+                        <i class="fas fa-calendar-check"></i>
+                        <h5>Project Timeline</h5>
+                    </div>
+                    <div class="filter-btn-group mb-3">
+                        <button class="filter-btn active" onclick="filterTimeline('all')">All</button>
+                        <button class="filter-btn" onclick="filterTimeline('ongoing')">Ongoing</button>
+                        <button class="filter-btn" onclick="filterTimeline('upcoming')">Upcoming</button>
+                        <button class="filter-btn" onclick="filterTimeline('completed')">Completed</button>
+                    </div>
+                    <div class="timeline-scroll" style="max-height: 350px; overflow-y: auto;">
+                        {% for project in recent_projects %}
+                        <div class="timeline-item {{ project.status }}" data-status="{{ project.status }}">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div>
+                                    <h6 class="mb-1 fw-bold">{{ project.name }}</h6>
+                                    <small class="text-muted">
+                                        <i class="fas fa-university me-1"></i>{{ project.school }}
+                                    </small>
+                                    <br>
+                                    {% if project.start_date and project.end_date %}
+                                    <small class="text-muted">
+                                        <i class="fas fa-calendar me-1"></i>
+                                        {{ project.start_date|date:"M d, Y" }} - {{ project.end_date|date:"M d, Y" }}
+                                    </small>
+                                    {% endif %}
+                                </div>
+                                <span class="badge 
+                                    {% if project.status == 'ongoing' %}bg-success
+                                    {% elif project.status == 'upcoming' %}bg-warning
+                                    {% else %}bg-secondary{% endif %}">
+                                    {{ project.status|title }}
+                                </span>
+                            </div>
+                        </div>
+                        {% empty %}
+                        <p class="text-muted text-center">No projects found</p>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    
+
+</div>
+
+
+<!-- Chart.js Script -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+// School Chart Data (from backend)
+const schoolData = {
+    labels: [
+        {% for school in schools %}
+        '{{ school.name }}'{% if not forloop.last %},{% endif %}
+        {% endfor %}
+    ],
+    datasets: [{
+        label: 'Projects per School',
+        data: [
+            {% for school in schools %}
+            {{ school.project_count }}{% if not forloop.last %},{% endif %}
+            {% endfor %}
+        ],
+        backgroundColor: [
+            'rgba(102, 126, 234, 0.8)',
+            'rgba(118, 75, 162, 0.8)',
+            'rgba(79, 172, 254, 0.8)',
+            'rgba(67, 233, 123, 0.8)',
+            'rgba(250, 112, 154, 0.8)',
+            'rgba(254, 225, 64, 0.8)',
+            'rgba(168, 237, 234, 0.8)',
+            'rgba(255, 107, 107, 0.8)',
+            'rgba(78, 205, 196, 0.8)',
+            'rgba(255, 159, 243, 0.8)'
+        ],
+        borderColor: [
+            'rgba(102, 126, 234, 1)',
+            'rgba(118, 75, 162, 1)',
+            'rgba(79, 172, 254, 1)',
+            'rgba(67, 233, 123, 1)',
+            'rgba(250, 112, 154, 1)',
+            'rgba(254, 225, 64, 1)',
+            'rgba(168, 237, 234, 1)',
+            'rgba(255, 107, 107, 1)',
+            'rgba(78, 205, 196, 1)',
+            'rgba(255, 159, 243, 1)'
+        ],
+        borderWidth: 2
+    }]
+};
+
+// Initialize School Chart
+const schoolCtx = document.getElementById('schoolChart').getContext('2d');
+const schoolChart = new Chart(schoolCtx, {
+    type: 'bar',
+    data: schoolData,
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        onClick: (event, activeElements) => {
+            if (activeElements.length > 0) {
+                const index = activeElements[0].index;
+                const schoolId = [
+                    {% for school in schools %}
+                    '{{ school.id }}'{% if not forloop.last %},{% endif %}
+                    {% endfor %}
+                ][index];
+                const schoolName = schoolData.labels[index];
+                filterBySchool(schoolId, schoolName);
+            }
+        },
+        plugins: {
+            legend: {
+                display: false
+            },
+            tooltip: {
+                callbacks: {
+                    label: function(context) {
+                        return context.parsed.y + ' project(s)';
+                    }
+                }
+            }
+        },
+        scales: {
+            y: {
+                beginAtZero: true,
+                ticks: {
+                    stepSize: 1
+                }
+            },
+            x: {
+                ticks: {
+                    autoSkip: false,
+                    maxRotation: 45,
+                    minRotation: 45
+                }
+            }
+        }
+    }
+});
+
+
+// Filter by School
+function filterBySchool(schoolId, schoolName) {
+    // Redirect to filtered view
+    const currentUrl = new URL(window.location.href);
+    currentUrl.searchParams.set('school', schoolId);
+    // Remove project filter if exists
+    currentUrl.searchParams.delete('project');
+    window.location.href = currentUrl.toString();
+}
+
+// Filter Timeline
+function filterTimeline(status) {
+    // Update active filter button
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    event.target.classList.add('active');
+    
+    // Filter timeline items
+    const timelineItems = document.querySelectorAll('.timeline-item');
+    timelineItems.forEach(item => {
+        if (status === 'all') {
+            item.style.display = 'block';
+        } else {
+            if (item.dataset.status === status) {
+                item.style.display = 'block';
+            } else {
+                item.style.display = 'none';
+            }
+        }
+    });
+}
+
+// Show Notification
+function showNotification(message, type) {
+    type = type || 'info';
+    
+    const notification = document.createElement('div');
+    notification.className = 'alert alert-' + type + ' alert-dismissible fade show position-fixed';
+    notification.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+    notification.innerHTML = message + '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>';
+    
+    document.body.appendChild(notification);
+    
+    setTimeout(function() {
+        notification.remove();
+    }, 3000);
+}
+
+// Initialize tooltips if Bootstrap is available
+document.addEventListener('DOMContentLoaded', function() {
+    if (typeof bootstrap !== 'undefined') {
+        const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl);
+        });
+    }
+});
+
+// Add hover effect to chart
+schoolChart.options.onHover = function(event, chartElement) {
+    event.native.target.style.cursor = chartElement[0] ? 'pointer' : 'default';
+};
+</script>
+
+{% endblock %}  

@@ -1,0 +1,1443 @@
+<!DOCTYPE html>
+<html lang="en">
+{% load static %}
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}ATMS Dashboard{% endblock %}</title>
+
+  <!-- Bootstrap & Fonts -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+  <link href="https://fonts.googleapis.com/css?family=Poppins:400,500,700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+
+  <style>
+    :root {
+      --atms-blue: #007bff;
+      --sidebar-bg: #f8f9fa;
+      --main-bg: #ffffff;
+      --primary-text: #172b4d;
+      --secondary-text: #6b778c;
+      --border-color: #dfe1e6;
+      --card-shadow: 0 1px 0 rgba(9, 30, 66, 0.25);
+      --hover-bg: #e8f0fe;
+    }
+
+    /* Fixed layout additions */
+    html, body {
+      height: 100%;
+      overflow: hidden;
+    }
+    .main-container {
+      min-height: 100vh;
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    body {
+      font-family: 'Poppins', sans-serif;
+      background-color: var(--main-bg);
+      color: var(--primary-text);
+      margin: 0;
+    }
+
+    /* Sidebar */
+    .sidebar {
+      background-color: var(--sidebar-bg);
+      width: 280px;
+      min-width: 280px;
+      max-width: 280px;
+      padding: 24px 16px;
+      border-right: 1px solid var(--border-color);
+      min-height: 100vh;
+      overflow-y: auto;
+      box-shadow: 2px 0 8px rgba(0,0,0,0.05);
+      flex-shrink: 0;
+      position: relative;
+      height: 100%;
+    }
+    .sidebar::-webkit-scrollbar { width: 6px; }
+    .sidebar::-webkit-scrollbar-track { background: transparent; }
+    .sidebar::-webkit-scrollbar-thumb { background: #cbd5e0; border-radius: 3px; }
+    .sidebar::-webkit-scrollbar-thumb:hover { background: #a0aec0; }
+
+    .sidebar-logo {
+      font-size: 1.75rem;
+      font-weight: 700;
+      color: #1a202c;
+      margin-bottom: 32px;
+      padding: 0 8px;
+      letter-spacing: -0.5px;
+      display: flex;
+      align-items: center;
+    }
+
+    .logo-image {
+      height: 1em;
+      width: auto;
+      vertical-align: middle;
+      margin-right: 6px;
+    }
+
+    .sidebar-logo span {
+      color: var(--atms-blue);
+    }
+
+    /* Menu Links */
+    .sidebar-menu a { 
+      color: var(--primary-text); 
+      text-decoration: none; 
+      display: flex; 
+      align-items: center; 
+      padding: 10px 12px; 
+      border-radius: 8px; 
+      margin-bottom: 4px; 
+      font-weight: 500;
+      font-size: 14px;
+      transition: all 0.2s ease;
+    }
+    .sidebar-menu a:hover { 
+      background-color: var(--hover-bg);
+      transform: translateX(2px);
+    }
+    .sidebar-menu a i { 
+      margin-right: 12px; 
+      width: 20px; 
+      text-align: center;
+      font-size: 16px;
+      color: var(--secondary-text);
+    }
+    .sidebar-menu a.active { 
+      background-color: var(--atms-blue); 
+      color: white;
+      box-shadow: 0 2px 4px rgba(0,123,255,0.3);
+    }
+    .sidebar-menu a.active i { color: white; }
+
+    /* Section Headers */
+    .section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 8px 8px 12px;
+      margin: 24px 0 8px 0;
+    }
+    .section-header h6 {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--secondary-text);
+      margin: 0;
+    }
+    .section-header .add-btn {
+      width: 24px;
+      height: 24px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--secondary-text);
+      background: transparent;
+      border: 1px solid var(--border-color);
+      transition: all 0.2s ease;
+      font-size: 12px;
+      cursor: pointer;
+      text-decoration: none;
+    }
+    .section-header .add-btn:hover {
+      background: var(--atms-blue);
+      color: white;
+      border-color: var(--atms-blue);
+      transform: scale(1.05);
+    }
+
+    /* Divider */
+    .sidebar-divider {
+      border: none;
+      border-top: 1px solid var(--border-color);
+      margin: 20px 0;
+      opacity: 0.6;
+    }
+
+    /* Projects List */
+    .project-item {
+      margin-bottom: 2px;
+    }
+    .project-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 12px;
+      border-radius: 8px;
+      transition: all 0.2s ease;
+      cursor: pointer;
+      position: relative;
+    }
+    .project-header.selected {
+      background-color: #e8f0fe;
+    }
+    .project-link {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      color: var(--primary-text);
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 500;
+      padding: 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 180px;
+    }
+    .project-link:hover {
+      color: var(--atms-blue);
+    }
+    .project-link i {
+      font-size: 10px;
+      margin-right: 10px;
+      color: var(--secondary-text);
+      transition: color 0.2s ease;
+      flex-shrink: 0;
+    }
+    .project-link.active {
+      color: var(--atms-blue);
+      font-weight: 700;
+    }
+    .project-link.active i {
+      color: var(--atms-blue);
+    }
+    .project-header:hover {
+      background-color: var(--hover-bg);
+    }
+
+    /* Project Actions Container */
+    .project-actions {
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      margin-left: auto;
+      flex-shrink: 0;
+    }
+
+    .project-toggle {
+      background: none;
+      border: none;
+      color: var(--secondary-text);
+      padding: 6px 8px;
+      cursor: pointer;
+      border-radius: 6px;
+      transition: all 0.2s ease;
+      font-size: 11px;
+      width: 28px;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .project-toggle:hover {
+      background-color: rgba(0,123,255,0.1);
+      color: var(--atms-blue);
+    }
+    .project-toggle i {
+      transition: transform 0.3s ease;
+    }
+    .project-toggle i.rotated {
+      transform: rotate(180deg);
+    }
+
+    /* Project Dropdown Button */
+    .project-dropdown-btn {
+      background: none;
+      border: none;
+      color: var(--secondary-text);
+      padding: 6px 8px;
+      cursor: pointer;
+      border-radius: 6px;
+      transition: all 0.2s ease;
+      font-size: 13px;
+      line-height: 1;
+      width: 28px;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .project-dropdown-btn:hover {
+      background-color: rgba(0,123,255,0.1);
+      color: var(--atms-blue);
+    }
+
+    .project-description {
+      padding: 8px 12px 8px 36px;
+      font-size: 12px;
+      color: var(--secondary-text);
+      line-height: 1.5;
+      background-color: rgba(0,123,255,0.03);
+      border-radius: 0 0 8px 8px;
+      margin-top: -4px;
+    }
+
+    /* Teams Accordion (Updated & Enhanced) */
+    .accordion-item {
+      border: none;
+      background: transparent;
+      margin-bottom: 8px;
+      position: relative;
+    }
+
+    .accordion-button {
+      background: #f8f9fa;
+      color: var(--primary-text);
+      border-radius: 8px;
+      margin-bottom: 4px;
+      padding-right: 50px;
+      padding: 10px 70px 10px 16px;
+      font-size: 14px;
+      font-weight: 500;
+      text-align: left;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      transition: all 0.2s ease;
+      position: relative;
+      border: none;
+    }
+
+    .accordion-button:focus {
+      box-shadow: none;
+      border: none;
+    }
+
+    .accordion-button:hover {
+      background-color: var(--hover-bg);
+    }
+
+    .accordion-button::after {
+      display: none;
+    }
+
+    .accordion-button:not(.collapsed) {
+      background-color: var(--hover-bg);
+      color: var(--atms-blue);
+    }
+
+    .accordion-body {
+      background-color: #f4f5f7;
+      border-radius: 0 0 8px 8px;
+      padding: 12px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .team-lead {
+      background-color: rgba(0,123,255,0.08);
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 500;
+      display: inline-block;
+      width: fit-content;
+    }
+
+    .team-member-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+
+    .team-member-list li {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      color: var(--primary-text);
+      word-break: break-all;
+      padding: 4px 0;
+    }
+
+    .team-member-list li i {
+      font-size: 12px;
+      color: var(--secondary-text);
+    }
+
+    /* Team Actions Container */
+    .team-actions {
+      position: absolute;
+      right: 8px;
+      top: 50%;
+      transform: translateY(-50%);
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      z-index: 10;
+    }
+
+    /* Team Dropdown Button */
+    .team-dropdown-btn {
+      background: none;
+      border: none;
+      color: var(--secondary-text);
+      padding: 6px 8px;
+      cursor: pointer;
+      border-radius: 6px;
+      transition: all 0.2s ease;
+      font-size: 13px;
+      width: 28px;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .team-dropdown-btn:hover {
+      background-color: rgba(0,123,255,0.1);
+      color: var(--atms-blue);
+    }
+
+    /* Team Toggle Button */
+    .team-toggle {
+      background: none;
+      border: none;
+      color: var(--secondary-text);
+      padding: 6px 8px;
+      cursor: pointer;
+      border-radius: 6px;
+      transition: all 0.2s ease;
+      font-size: 11px;
+      width: 28px;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .team-toggle:hover {
+      background-color: rgba(0,123,255,0.1);
+      color: var(--atms-blue);
+    }
+
+    .team-toggle i {
+      transition: transform 0.3s ease;
+    }
+
+    .team-toggle i.rotated {
+      transform: rotate(180deg);
+    }
+
+    /* Dropdown Menu Styling */
+    .dropdown-menu {
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      border: 1px solid var(--border-color);
+      padding: 4px;
+      min-width: 160px;
+    }
+
+    .dropdown-item {
+      border-radius: 6px;
+      padding: 8px 12px;
+      font-size: 14px;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+    }
+
+    .dropdown-item:hover {
+      background-color: var(--hover-bg);
+    }
+
+    .dropdown-item i {
+      font-size: 14px;
+      width: 20px;
+    }
+
+    .dropdown-item.text-primary:hover {
+      background-color: rgba(0,123,255,0.1);
+      color: var(--atms-blue) !important;
+    }
+
+    .dropdown-item.text-danger:hover {
+      background-color: rgba(220,53,69,0.1);
+      color: #dc3545 !important;
+    }
+
+    /* Empty States */
+    .empty-state {
+      text-align: center;
+      padding: 20px 12px;
+      color: var(--secondary-text);
+      font-size: 13px;
+      font-style: italic;
+    }
+
+    /* Main content */
+    .main-content { 
+      flex-grow: 1; 
+      padding: 20px; 
+      min-width: 0; 
+      background-color: #fafbfc; 
+      height: 100%; 
+      overflow-y: auto;
+    }
+    .top-navbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; }
+    .search-bar { width: 300px; }
+    .board-header-menu a { color: var(--primary-text); text-decoration: none; padding: 8px 15px; border-radius: 5px; font-weight: 500; }
+    .board-header-menu a.active { background-color: #e2e4e8; position: relative; }
+    .board-header-menu a.active::after { content: ''; position: absolute; left: 0; right: 0; bottom: -6px; height: 4px; background-color: var(--atms-blue); }
+
+    /* Kanban */
+    .board { display: flex; gap: 15px; overflow-x: auto; padding-bottom: 15px; scrollbar-width: thin; scrollbar-color: var(--border-color) transparent; }
+    .board::-webkit-scrollbar { height: 6px; }
+    .board::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; }
+    .kanban-column { background-color: #f4f5f7; border-radius: 5px; padding: 10px; min-width: 300px; }
+    .kanban-column-header { font-weight: 600; margin-bottom: 10px; }
+    .kanban-column-header.todo { color: #3764eb; }
+    .kanban-column-header.inprogress { color: #f97316; }
+    .kanban-column-header.inreview { color: #9333ea; }
+    .kanban-column-header.done { color: #22c55e; }
+    .task-card { background-color: white; border-radius: 5px; padding: 10px; margin-bottom: 10px; box-shadow: var(--card-shadow); min-height: 90px; display: flex; flex-direction: column; justify-content: space-between; }
+    .task-title { font-weight: 700; font-size: 14px; }
+    .task-meta { font-size: 12px; color: var(--secondary-text); }
+    .create-task-btn { background-color: var(--atms-blue); color: white; font-weight: 500; border-radius: 8px; display: flex; align-items: center; gap: 5px; border: none; padding: 10px 16px; transition: all 0.2s ease; }
+    .create-task-btn:hover { background-color: #0056b3; transform: translateY(-1px); box-shadow: 0 4px 8px rgba(0,123,255,0.3); }
+
+    /* Profile Dropdown */
+    .profile-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--atms-blue), #0056b3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-size: 18px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .profile-icon:hover {
+      transform: scale(1.05);
+      box-shadow: 0 2px 8px rgba(0,123,255,0.3);
+    }
+
+    .selected-project {
+        background-color: #e8f0fe;
+        border-radius: 8px;
+        font-weight: 700;
+    }
+
+    /* Modal Styling */
+    .modal-header.bg-primary,
+    .modal-header.bg-info,
+    .modal-header.bg-success {
+        border-bottom: none;
+    }
+
+    .modal-footer.bg-light {
+        border-top: 1px solid #dee2e6;
+    }
+
+    .form-label.fw-semibold {
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+    }
+
+    .form-select[multiple] {
+        min-height: 150px !important;
+    }
+
+    .form-select option:disabled {
+        background-color: #f8f9fa;
+        color: #6c757d;
+    }
+  </style>
+
+
+</head>
+<body>
+<div class="main-container">
+<!-- Sidebar -->
+<div class="sidebar">
+    <div class="sidebar-logo">
+        <img src="{% static 'accounts/images/group-481747-1-19.png' %}" alt="Students Logo" class="logo-image">
+        AT<span>MS</span>
+    </div>
+
+
+
+    <div class="sidebar-menu">
+        {% if request.user.role == 'hod' %}
+            <a href="{% url 'accounts:hod_dashboard' %}{% if request.GET.project %}?project={{ request.GET.project }}{% elif request.session.selected_project_id %}?project={{ request.session.selected_project_id }}{% endif %}" class="{% if request.resolver_match.url_name == 'hod_dashboard' %}{% endif %}">
+                <i class="fas fa-home"></i> Home
+            </a>
+        {% elif request.user.role == 'coordinator' %}
+            <a href="{% url 'accounts:coordinator_dashboard' %}{% if request.GET.project %}?project={{ request.GET.project }}{% elif request.session.selected_project_id %}?project={{ request.session.selected_project_id }}{% endif %}" class="{% if request.resolver_match.url_name == 'coordinator_dashboard' %}active{% endif %}">
+                <i class="fas fa-home"></i> Home
+            </a>
+        {% else %}
+            <a href="{% url 'accounts:staff_dashboard' %}{% if request.GET.project %}?project={{ request.GET.project }}{% elif request.session.selected_project_id %}?project={{ request.session.selected_project_id }}{% endif %}" class="{% if request.resolver_match.url_name == 'staff_dashboard' %}{% endif %}">
+                <i class="fas fa-home"></i> Home
+            </a>
+        {% endif %}
+        {% if request.user.role == 'coordinator' %}
+            <a href="{% url 'accounts:coordinator_dashboard_1' %}"
+              class="{% if request.resolver_match.url_name == 'coordinator_dashboard_1' %}active{% endif %}">
+                <i class="fas fa-tachometer-alt"></i> Dashboard
+            </a>
+        {% endif %}
+
+    </div>
+
+    <!-- <div class="sidebar-menu">
+        {% if request.user.role == 'hod' %}
+            <a href="{% url 'accounts:hod_dashboard' %}" class="{% if request.resolver_match.url_name == 'hod_dashboard' %}active{% endif %}">
+                <i class="fas fa-home"></i> Summary
+            </a>
+        {% else %}
+            <a href="{% url 'accounts:staff_dashboard' %}" class="{% if request.resolver_match.url_name == 'staff_dashboard' %}active{% endif %}">
+                <i class="fas fa-home"></i> Summary
+            </a>
+        {% endif %}
+    </div> -->
+
+    <hr class="sidebar-divider">
+
+    <!-- Projects Section -->
+    <div class="section-header d-flex justify-content-between align-items-center">
+        <h6>Projects</h6>
+        {% if request.user.role != 'coordinator' %}
+        <a href="#" class="add-btn" data-bs-toggle="modal" data-bs-target="#createProjectModal" onclick="resetProjectModal()">
+            <i class="fas fa-plus"></i>
+        </a>
+        {% endif %}
+
+    </div>
+
+    <div class="projects-list">
+        <div class="project-item">
+            <div class="project-header {% if request.GET.project == '' or not request.GET.project and not request.session.selected_project_id %}selected{% endif %}">
+                <a href="?project=" class="project-link {% if request.GET.project == '' or not request.GET.project and not request.session.selected_project_id %}active{% endif %}">
+                    <i class="fas fa-circle-notch"></i> All Projects
+                </a>
+            </div>
+        </div>
+
+        {% for project in projects %}
+        <div class="project-item position-relative">
+            <div class="project-header {% if request.GET.project == project.id|stringformat:'s' or request.session.selected_project_id|stringformat:'s' == project.id|stringformat:'s' %}selected{% endif %}">
+                <a href="?project={{ project.id }}" 
+                   class="project-link {% if request.GET.project == project.id|stringformat:'s' or request.session.selected_project_id|stringformat:'s' == project.id|stringformat:'s' %}active{% endif %}">
+                    <i class="fas fa-circle"></i> {{ project.name }}
+                </a>
+                <div class="project-actions">
+
+                    {% if request.user.role != 'coordinator' %}
+                    <div class="dropdown d-inline-block">
+                        <button class="project-dropdown-btn" type="button" id="projectDropdown{{ project.id }}" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="fas fa-ellipsis-v"></i>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="projectDropdown{{ project.id }}">
+                            <li>
+                                <a class="dropdown-item text-primary" href="#"
+                                  onclick="openEditProjectModal(
+                                      {{ project.id }}, 
+                                      '{{ project.name|escapejs }}', 
+                                      '{{ project.description|escapejs }}', 
+                                      '{{ project.keyword|default:''|escapejs }}',
+                                      '{{ project.start_date|date:'Y-m-d'|default:'' }}',
+                                      '{{ project.end_date|date:'Y-m-d'|default:'' }}'
+                                  ); return false;">
+                                    <i class="fas fa-edit me-2"></i>Edit
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item text-danger" href="{% url 'accounts:delete_project' project.id %}"
+                                  onclick="return confirm('Are you sure you want to delete this project?');">
+                                    <i class="fas fa-trash me-2"></i>Delete
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+                    {% endif %}
+
+                    <!-- Chevron should ALWAYS be visible -->
+                    <button class="project-toggle" type="button" data-bs-toggle="collapse"
+                            data-bs-target="#projectDesc{{ project.id }}" aria-expanded="false">
+                        <i class="fas fa-chevron-down"></i>
+                    </button>
+
+                </div>
+
+            </div>
+            <div id="projectDesc{{ project.id }}" class="collapse">
+                <div class="project-description">
+                    {{ project.description|default:"No description available" }}
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="empty-state">No projects yet</div>
+        {% endfor %}
+    </div>
+
+    <hr class="sidebar-divider">
+
+    {% if request.user.role == 'hod' %}
+    <div class="sidebar-menu">
+        <a href="{% url 'accounts:hod_staff' %}" class="{% if request.resolver_match.url_name == 'hod_staff' %}active{% endif %}">
+            <i class="fas fa-user-plus"></i> Staff
+        </a>
+    </div>
+    <hr class="sidebar-divider">
+    {% endif %}
+
+    <!-- Teams Section -->
+    <div class="section-header d-flex justify-content-between align-items-center">
+        <h6>Teams</h6>
+        {% if request.user.role != 'coordinator' %}
+        <a href="#" class="add-btn" data-bs-toggle="modal" data-bs-target="#createTeamModal" onclick="resetTeamModal()">
+            <i class="fas fa-plus"></i>
+        </a>
+        {% endif %}
+
+    </div>
+
+    <div class="accordion accordion-flush" id="teamsAccordion">
+        {% for team in teams %}
+        <div class="accordion-item position-relative">
+            <h2 class="accordion-header" id="headingTeam{{ team.id }}">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
+                        data-bs-target="#collapseTeam{{ team.id }}" aria-expanded="false" aria-controls="collapseTeam{{ team.id }}">
+                    <i class="fas fa-users me-2"></i> {{ team.name }}
+                </button>
+
+                <!-- Team Actions (Dropdown + Toggle) - Side by Side -->
+                <div style="position: absolute; right: 8px; top: 8px; z-index: 10; display: flex; align-items: center; gap: 2px;">
+                    <!-- Dropdown for team edit/delete -->
+                    {% if request.user.role != 'coordinator' %}
+                    <div class="dropdown d-inline-block">
+                        <button class="team-dropdown-btn" type="button" id="teamDropdown{{ team.id }}" data-bs-toggle="dropdown" aria-expanded="false" onclick="event.stopPropagation();">
+                            <i class="fas fa-ellipsis-v"></i>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="teamDropdown{{ team.id }}">
+                            <li>
+                                <a class="dropdown-item text-primary" href="#" 
+                                  onclick="openEditTeamModal({{ team.id }}, '{{ team.name|escapejs }}', {{ team.project.id|default:'null' }}, {{ team.head.id }}, [{% for member in team.members.all %}{{ member.id }}{% if not forloop.last %},{% endif %}{% endfor %}]); return false;">
+                                    <i class="fas fa-edit me-2"></i>Edit
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item text-danger" href="{% url 'accounts:delete_team' team.id %}" 
+                                  onclick="return confirm('Are you sure you want to delete this team?');">
+                                    <i class="fas fa-trash me-2"></i>Delete
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+                    {% endif %}
+                </div>
+            </h2>
+
+            <div id="collapseTeam{{ team.id }}" class="accordion-collapse collapse"
+                aria-labelledby="headingTeam{{ team.id }}" data-bs-parent="#teamsAccordion">
+                <div class="accordion-body">
+                    {% if team.project %}
+                    <div class="team-project mb-2">
+                        <i class="fas fa-briefcase"></i>
+                        <strong>Project:</strong> {{ team.project.name }}
+                    </div>
+                    {% endif %}
+
+                    <div class="team-lead">
+                        <i class="fas fa-user-tie"></i>
+                        <strong>Lead:</strong> {{ team.head.email }}
+                    </div>
+
+                    {% if team.members.all %}
+                    <ul class="team-member-list mt-2">
+                        {% for member in team.members.all %}
+                        <li>
+                            <i class="fas fa-user-circle"></i> {{ member.email }}
+                        </li>
+                        {% endfor %}
+                    </ul>
+                    {% else %}
+                    <p class="text-muted small mb-2">No members yet</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="empty-state">No teams yet</div>
+        {% endfor %}
+    </div>
+</div>
+
+
+  <!-- Main content -->
+  <div class="main-content">
+    <div class="top-navbar mb-4">
+      <div class="d-flex align-items-center flex-wrap">
+        {% if request.user.role != 'student' and request.user.role != 'coordinator' %}
+        
+        <button class="btn create-task-btn" data-bs-toggle="modal" data-bs-target="#createTaskModal">
+          <i class="fas fa-plus"></i> Create Task
+        </button>
+        {% endif %}
+
+      </div>
+      <div class="d-flex align-items-center flex-wrap">
+        <div class="dropdown">
+          <a href="#" class="d-flex align-items-center text-decoration-none dropdown-toggle"
+             id="profileDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+            <div class="profile-icon">
+              <i class="fas fa-user"></i>
+            </div>
+          </a>
+          <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="profileDropdown">
+            <li class="dropdown-header">
+              <strong>{{ request.user.get_full_name|default:request.user.username }}</strong><br>
+              <small class="text-muted">{{ request.user.email }}</small>
+            </li>
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item" href="{% url 'accounts:profile' %}"><i class="fas fa-user me-2"></i> Profile</a></li>
+            <li>
+              <form id="logoutForm" action="{% url 'accounts:logout' %}" method="post" style="margin: 0; padding: 0;">
+                {% csrf_token %}
+                <button type="submit" class="dropdown-item text-danger" style="border: none; background: none; width: 100%; text-align: left;">
+                  <i class="fas fa-sign-out-alt me-2"></i> Logout
+                </button>
+              </form>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    {% if request.user.role == "coordinator" %}
+    <div class="alert alert-info py-2 px-3 mb-3" style="width: fit-content; border-radius: 6px;">
+        <i class="fas fa-user-shield me-2"></i>
+        <strong>Coordinator Mode:</strong> Read-only access enabled
+    </div>
+    {% endif %}
+    {% block content %}{% endblock %}
+
+  </div>
+</div>
+
+<!-- Modals -->
+{% block modals %}
+{% if request.user.role != 'coordinator' %}
+<!-- Create Task Modal -->
+<div class="modal fade" id="createTaskModal" tabindex="-1" aria-labelledby="createTaskModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" style="max-width: 90%; width: 90%;">
+    <div class="modal-content">
+      <form method="POST" action="{% url 'accounts:create_task' %}">
+        {% csrf_token %}
+        <div class="modal-header bg-success text-white">
+          <h5 class="modal-title" id="createTaskModalLabel">
+            <i class="fas fa-tasks me-2"></i>Create New Task
+          </h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="row">
+            <!-- Left Column -->
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label for="project" class="form-label fw-semibold">
+                  <i class="fas fa-project-diagram text-warning me-2"></i>Project/Event <span class="text-danger">*</span>
+                </label>
+                <select class="form-select" id="project" name="project" required onchange="updateTeamDropdown()">
+                  <option value="">Select Project/Event First</option>
+                  {% for project in projects %}
+                    <option value="{{ project.id }}" data-project-id="{{ project.id }}">{{ project.name }}</option>
+                  {% endfor %}
+                </select>
+                <small class="text-muted">Select a project to see available teams</small>
+              </div>
+
+              <div class="mb-3">
+                <label for="taskTitle" class="form-label fw-semibold">
+                  <i class="fas fa-heading text-primary me-2"></i>Title
+                </label>
+                <input type="text" class="form-control" id="taskTitle" name="title" placeholder="Enter task title" required>
+              </div>
+
+              <div class="mb-3">
+                <label for="taskDescription" class="form-label fw-semibold">
+                  <i class="fas fa-align-left text-primary me-2"></i>Description
+                </label>
+                <textarea class="form-control" id="taskDescription" name="description" rows="3" placeholder="Enter task description" required></textarea>
+              </div>
+            </div>
+
+            <!-- Right Column -->
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label for="assignedTeam" class="form-label fw-semibold">
+                  <i class="fas fa-users text-success me-2"></i>Assign To (Team)
+                </label>
+                <select class="form-select" id="assignedTeam" name="team" onchange="updateUserDropdown()" disabled>
+                  <option value="">Select project/Event first</option>
+                </select>
+                <small class="text-muted">Teams from selected project only</small>
+              </div>
+
+              <div class="mb-3">
+                <label for="assignedTo" class="form-label fw-semibold">
+                  <i class="fas fa-user text-info me-2"></i>Assign To (User)
+                </label>
+                <select class="form-select" id="assignedTo" name="assigned_to" disabled>
+                  <option value="">Select team first</option>
+                </select>
+              </div>
+
+              <div class="mb-3">
+                <label for="status" class="form-label fw-semibold">
+                  <i class="fas fa-flag text-primary me-2"></i>Status
+                </label>
+                <select class="form-select" id="status" name="status" required>
+                  <option value="to_do" selected>To Do</option>
+                </select>
+              </div>
+
+              <div class="mb-3">
+                <label for="priority" class="form-label fw-semibold">
+                  <i class="fas fa-exclamation-circle text-danger me-2"></i>Priority
+                </label>
+                <select class="form-select" id="priority" name="priority" required>
+                  <option value="low">Low</option>
+                  <option value="medium">Medium</option>
+                  <option value="high">High</option>
+                </select>
+              </div>
+
+              <div class="mb-3">
+                <label for="dueDate" class="form-label fw-semibold">
+                  <i class="fas fa-calendar text-secondary me-2"></i>Due Date
+                </label>
+                <input type="date" class="form-control" id="dueDate" name="due_date">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer bg-light">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+            <i class="fas fa-times me-2"></i>Cancel
+          </button>
+          <button type="submit" class="btn btn-success">
+            <i class="fas fa-check me-2"></i>Create Task
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% if request.user.role != 'coordinator' %}
+<!-- Create/Edit Project Modal -->
+<div class="modal fade" id="createProjectModal" tabindex="-1" aria-labelledby="createProjectModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content">
+      <form method="POST" action="{% url 'accounts:create_project' %}" id="projectForm">
+        {% csrf_token %}
+        <div class="modal-header bg-primary text-white">
+          <h5 class="modal-title" id="projectModalTitle">
+            <i class="fas fa-folder-plus me-2"></i><span id="projectModalTitleText">Create New Project/Event</span>
+          </h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="row">
+            <!-- Left Column -->
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label for="projectName" class="form-label fw-semibold">
+                  <i class="fas fa-project-diagram text-primary me-2"></i> Project Name / Event Name <span class="text-danger">*</span>
+                </label>
+                <input type="text" class="form-control" id="projectName" name="name" placeholder="Enter project/Event name" required>
+              </div>
+              
+              <div class="mb-3">
+                <label for="projectKeyword" class="form-label fw-semibold">
+                  <i class="fas fa-key text-primary me-2"></i> Project/Event Keyword <span class="text-danger">*</span>
+                </label>
+                <input type="text" class="form-control" id="projectKeyword" name="keyword"
+                      placeholder="Enter short keyword " required>
+                <small class="text-muted">This keyword will be prefixed to team names.</small>
+              </div>
+
+              <div class="mb-3">
+                <label for="projectDescription" class="form-label fw-semibold">
+                  <i class="fas fa-align-left text-primary me-2"></i>Description
+                </label>
+                <textarea class="form-control" id="projectDescription" name="description" rows="4" placeholder="Enter project/Event description"></textarea>
+              </div>
+            </div>
+
+            <!-- Right Column -->
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label for="projectStartDate" class="form-label fw-semibold">
+                  <i class="fas fa-calendar-alt text-success me-2"></i> Start Date
+                </label>
+                <input type="date" class="form-control" id="projectStartDate" name="start_date">
+                <small class="text-muted">When does the project begin?</small>
+              </div>
+
+              <div class="mb-3">
+                <label for="projectEndDate" class="form-label fw-semibold">
+                  <i class="fas fa-calendar-check text-danger me-2"></i> End Date
+                </label>
+                <input type="date" class="form-control" id="projectEndDate" name="end_date">
+                <small class="text-muted">Target completion date</small>
+              </div>
+
+              <div class="alert alert-info mt-3">
+                <i class="fas fa-info-circle me-2"></i>
+                <small>
+                  <strong>Project Status:</strong><br>
+                  • <strong>Upcoming:</strong> Before start date<br>
+                  • <strong>Ongoing:</strong> Between start and end date<br>
+                  • <strong>Completed:</strong> Past end date with all tasks done
+                </small>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer bg-light">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+            <i class="fas fa-times me-2"></i>Cancel
+          </button>
+          <button type="submit" class="btn btn-primary" id="projectSubmitBtn">
+            <i class="fas fa-check me-2"></i><span id="projectSubmitBtnText">Create Project/Event</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% if request.user.role != 'coordinator' %}
+  <!-- Create/Edit Team Modal -->
+  <div class="modal fade" id="createTeamModal" tabindex="-1" aria-labelledby="createTeamModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+          <div class="modal-content">
+              <form method="POST" action="{% url 'accounts:create_team' %}" id="teamForm">
+                  {% csrf_token %}
+                  <div class="modal-header bg-primary text-white">
+                      <h5 class="modal-title" id="teamModalTitle">
+                          <i class="fas fa-users me-2"></i><span id="teamModalTitleText">Create New Team</span>
+                      </h5>
+                      <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                  </div>
+                  <div class="modal-body">
+                      <div class="mb-3">
+                          <label for="teamProject" class="form-label fw-semibold">
+                              <i class="fas fa-project-diagram text-warning me-2"></i>Project/Event <span class="text-danger">*</span>
+                          </label>
+                          <select class="form-select" id="teamProject" name="project" required>
+                              <option value="">-- Select Project/Event --</option>
+                              {% for project in projects %}
+                                  <option value="{{ project.id }}">{{ project.name }}</option>
+                              {% endfor %}
+                          </select>
+                      </div>
+                      <div class="mb-3">
+                          <label for="teamName" class="form-label fw-semibold">
+                              <i class="fas fa-tag text-primary me-2"></i>Team Name
+                          </label>
+                          <input type="text" class="form-control" id="teamName" name="name" placeholder="Enter team name" required>
+                      </div>
+                      <div class="mb-3">
+                          <label for="teamHead" class="form-label fw-semibold">
+                              <i class="fas fa-user-tie text-primary me-2"></i>Team Head
+                          </label>
+                          <select class="form-select" id="teamHead" name="head" required>
+                              <option value="">-- Select Team Head --</option>
+                              {% for user in staff_and_students %}
+                                  <option value="{{ user.id }}">{{ user.email }}</option>
+                              {% endfor %}
+                          </select>
+                      </div>
+                      <div class="mb-3">
+                          <label for="teamMembers" class="form-label fw-semibold">
+                              <i class="fas fa-user-friends text-primary me-2"></i>Team Members
+                          </label>
+                          <select multiple class="form-select" id="teamMembers" name="members" size="5">
+                              {% for user in staff_and_students %}
+                                  <option value="{{ user.id }}">{{ user.email }}</option>
+                              {% endfor %}
+                          </select>
+                          <small class="text-muted">Hold Ctrl (Windows) or Cmd (Mac) to select multiple</small>
+                      </div>
+                  </div>
+                  <div class="modal-footer bg-light">
+                      <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                          <i class="fas fa-times me-2"></i>Cancel
+                      </button>
+                      <button type="submit" class="btn btn-primary" id="teamSubmitBtn">
+                          <i class="fas fa-check me-2"></i><span id="teamSubmitBtnText">Create Team</span>
+                      </button>
+                  </div>
+              </form>
+          </div>
+      </div>
+  </div>
+{% endif %}
+{% endblock %}
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+// Store project-team relationships
+const projectTeamsData = {
+    {% for project in projects %}
+        {{ project.id }}: [
+            {% for team in project.teams.all %}
+                {
+                    id: {{ team.id }},
+                    name: "{{ team.name|escapejs }}",
+                    headId: {{ team.head.id }},
+                    members: [
+                        {{ team.head.id }},
+                        {% for member in team.members.all %}
+                            {% if member.id != team.head.id %}
+                                {{ member.id }}{% if not forloop.last %},{% endif %}
+                            {% endif %}
+                        {% endfor %}
+                    ]
+                }{% if not forloop.last %},{% endif %}
+            {% endfor %}
+        ]{% if not forloop.last %},{% endif %}
+    {% endfor %}
+};
+
+const projectKeywords = {
+    {% for project in projects %}
+      "{{ project.id }}": "{{ project.keyword|default:''|escapejs }}"{% if not forloop.last %},{% endif %}
+    {% endfor %}
+};
+
+// Store all users data
+const allUsersData = [
+    {% for user in staff_and_students %}
+        {
+            id: {{ user.id }},
+            email: "{{ user.email }}",
+            username: "{{ user.username }}"
+        }{% if not forloop.last %},{% endif %}
+    {% endfor %}
+];
+
+// ========== PROJECT MODAL FUNCTIONS ==========
+function resetProjectModal() {
+    const form = document.getElementById('projectForm');
+    form.action = "{% url 'accounts:create_project' %}";
+    form.reset();
+    document.getElementById('projectModalTitleText').textContent = 'Create New Project/Event';
+    document.getElementById('projectSubmitBtnText').textContent = 'Create Project/Event';
+    document.getElementById('projectKeyword').value = '';
+    document.getElementById('projectStartDate').value = '';
+    document.getElementById('projectEndDate').value = '';
+}
+
+function openEditProjectModal(projectId, projectName, projectDescription, keyword, startDate, endDate) {
+    const form = document.getElementById('projectForm');
+    const modal = new bootstrap.Modal(document.getElementById('createProjectModal'));
+
+    // Change form action to edit URL
+    form.action = `/accounts/edit_project/${projectId}/`;
+
+    // Update modal title and button
+    document.getElementById('projectModalTitleText').textContent = 'Edit Project/Event';
+    document.getElementById('projectSubmitBtnText').textContent = 'Update Project/Event';
+
+    // Fill in the form fields
+    document.getElementById('projectName').value = projectName;
+    document.getElementById('projectDescription').value = projectDescription;
+    document.getElementById('projectKeyword').value = keyword || '';
+    document.getElementById('projectStartDate').value = startDate || '';
+    document.getElementById('projectEndDate').value = endDate || '';
+
+    // Show the modal
+    modal.show();
+}
+
+// Validate dates
+document.getElementById('projectEndDate')?.addEventListener('change', function() {
+    const startDate = document.getElementById('projectStartDate').value;
+    const endDate = this.value;
+    
+    if (startDate && endDate && new Date(endDate) < new Date(startDate)) {
+        alert('End date cannot be before start date!');
+        this.value = '';
+    }
+});
+
+// ========== TEAM MODAL FUNCTIONS ==========
+function resetTeamModal() {
+    const form = document.getElementById('teamForm');
+    
+    form.action = "{% url 'accounts:create_team' %}";
+    form.reset();
+    
+    document.getElementById('teamModalTitleText').textContent = 'Create New Team';
+    document.getElementById('teamSubmitBtnText').textContent = 'Create Team';
+    
+    // Re-enable all options
+    const membersSelect = document.getElementById('teamMembers');
+    Array.from(membersSelect.options).forEach(option => {
+        option.disabled = false;
+    });
+}
+function openEditTeamModal(teamId, teamName, projectId, headId, memberIds) {
+    const form = document.getElementById('teamForm');
+    const modal = new bootstrap.Modal(document.getElementById('createTeamModal'));
+    
+    form.action = `/accounts/edit_team/${teamId}/`;
+    
+    document.getElementById('teamModalTitleText').textContent = 'Edit Team';
+    document.getElementById('teamSubmitBtnText').textContent = 'Update Team';
+
+    // ⭐ ALWAYS get uppercase keyword
+    let rawKeyword = projectKeywords[projectId] || "";
+    let keyword = rawKeyword.toUpperCase().trim();
+
+    // ⭐ Normalize possible prefix variations
+    let possiblePrefixes = [
+        keyword + "-",
+        keyword + " - ",
+        keyword + " ",
+    ];
+
+    let cleanedName = teamName;
+
+    possiblePrefixes.forEach(prefix => {
+        if (cleanedName.toUpperCase().startsWith(prefix.toUpperCase())) {
+            cleanedName = cleanedName.substring(prefix.length);
+        }
+    });
+
+    // ⭐ Clean and set name
+    document.getElementById('teamName').value = cleanedName.trim();
+
+    // Continue filling modal
+    document.getElementById('teamProject').value = projectId || '';
+    document.getElementById('teamHead').value = headId;
+
+    const membersSelect = document.getElementById('teamMembers');
+    Array.from(membersSelect.options).forEach(option => {
+        option.selected = memberIds.includes(parseInt(option.value));
+        option.disabled = option.value == headId;
+    });
+
+    modal.show();
+}
+
+
+
+document.addEventListener('DOMContentLoaded', function() {
+    // ========== CREATE TEAM MODAL ==========
+    const headSelect = document.getElementById('teamHead');
+    const membersSelect = document.getElementById('teamMembers');
+
+    function updateCreateTeamMembers() {
+        const headId = headSelect.value;
+        Array.from(membersSelect.options).forEach(option => {
+            option.disabled = option.value === headId;
+            if (option.disabled) {
+                option.selected = false;
+            }
+        });
+    }
+
+    if (headSelect && membersSelect) {
+        headSelect.addEventListener('change', updateCreateTeamMembers);
+    }
+
+    // Reset modals when closed
+    const createProjectModal = document.getElementById('createProjectModal');
+    if (createProjectModal) {
+        createProjectModal.addEventListener('hidden.bs.modal', function () {
+            resetProjectModal();
+        });
+    }
+
+    const createTeamModal = document.getElementById('createTeamModal');
+    if (createTeamModal) {
+        createTeamModal.addEventListener('hidden.bs.modal', function () {
+            resetTeamModal();
+        });
+    }
+
+    // ========== PROJECT TOGGLE ANIMATION ==========
+    document.querySelectorAll('.project-toggle').forEach(button => {
+        button.addEventListener('click', function(e) {
+            e.stopPropagation();
+            const icon = this.querySelector('i');
+            icon.classList.toggle('rotated');
+        });
+    });
+
+    // Initialize tooltips
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+
+    // Reset task form when modal is closed
+    const createTaskModal = document.getElementById('createTaskModal');
+    if (createTaskModal) {
+        createTaskModal.addEventListener('hidden.bs.modal', function () {
+            const form = createTaskModal.querySelector('form');
+            form.reset();
+            document.getElementById('assignedTeam').disabled = true;
+            document.getElementById('assignedTo').disabled = true;
+            document.getElementById('assignedTeam').innerHTML = '<option value="">Select project first</option>';
+            document.getElementById('assignedTo').innerHTML = '<option value="">Select team first</option>';
+        });
+    }
+});
+// ========== TASK MODAL - UPDATE TEAM DROPDOWN BASED ON PROJECT ==========
+function updateTeamDropdown() {
+    const projectId = document.getElementById('project').value;
+    const teamDropdown = document.getElementById('assignedTeam');
+    const userDropdown = document.getElementById('assignedTo');
+    
+    // Reset dropdowns
+    teamDropdown.innerHTML = '<option value="">Select Team</option>';
+    userDropdown.innerHTML = '<option value="">Select team first</option>';
+    userDropdown.disabled = true;
+    
+    if (!projectId) {
+        teamDropdown.disabled = true;
+        teamDropdown.innerHTML = '<option value="">Select project first</option>';
+        return;
+    }
+    
+    // Enable team dropdown
+    teamDropdown.disabled = false;
+    
+    // Get teams for selected project
+    const teams = projectTeamsData[projectId] || [];
+    
+    if (teams.length === 0) {
+        teamDropdown.innerHTML = '<option value="">No teams in this project</option>';
+        teamDropdown.disabled = true;
+        return;
+    }
+    
+    // Populate team dropdown with teams from selected project
+    teams.forEach(team => {
+        const option = document.createElement('option');
+        option.value = team.id;
+        option.textContent = team.name;
+        option.setAttribute('data-team-members', JSON.stringify(team.members));
+        teamDropdown.appendChild(option);
+    });
+}
+
+// ========== TASK MODAL - UPDATE USER DROPDOWN BASED ON TEAM ==========
+function updateUserDropdown() {
+    const teamDropdown = document.getElementById('assignedTeam');
+    const userDropdown = document.getElementById('assignedTo');
+    const selectedOption = teamDropdown.options[teamDropdown.selectedIndex];
+
+    // Reset user dropdown
+    userDropdown.innerHTML = '<option value="">Select User</option>';
+
+    if (!teamDropdown.value) {
+        userDropdown.disabled = true;
+        userDropdown.innerHTML = '<option value="">Select team first</option>';
+        return;
+    }
+
+    userDropdown.disabled = false;
+
+    // Get team members
+    const teamMemberIds = JSON.parse(selectedOption.getAttribute('data-team-members') || '[]');
+
+    // Avoid duplicate users
+    const uniqueMembers = [...new Set(teamMemberIds)];
+
+    // Find selected team in projectTeamsData
+    const projectId = document.getElementById('project').value;
+    const selectedTeamId = parseInt(teamDropdown.value);
+    const selectedTeam = (projectTeamsData[projectId] || []).find(t => t.id === selectedTeamId);
+
+    uniqueMembers.forEach(memberId => {
+        const user = allUsersData.find(u => u.id === memberId);
+
+        if (user) {
+            const option = document.createElement('option');
+            option.value = user.id;
+
+            // Label team head separately
+            if (selectedTeam && memberId === selectedTeam.headId) {
+                option.textContent = user.email + " (Team Head)";
+            } else {
+                option.textContent = user.email + " (Member)";
+            }
+
+            userDropdown.appendChild(option);
+        }
+    });
+}
+// Auto-generate Project Keyword based on Project Name
+const projectNameInput = document.getElementById('projectName');
+const projectKeywordInput = document.getElementById('projectKeyword');
+
+let keywordEditedManually = false;
+
+// Detect manual edits
+projectKeywordInput.addEventListener('input', () => {
+    keywordEditedManually = true;
+});
+
+// Auto-fill keyword when name is typed
+projectNameInput.addEventListener('input', () => {
+    if (keywordEditedManually) return;  // user manually changed keyword → do not override
+
+    const name = projectNameInput.value.trim();
+
+    if (!name) {
+        projectKeywordInput.value = "";
+        return;
+    }
+
+    let keyword = "";
+
+    const words = name.split(" ").filter(w => w.length > 0);
+
+    if (words.length > 1) {
+        // Multi-word → take first letter of each
+        keyword = words.map(w => w[0].toUpperCase()).join("");
+    } else {
+        // Single word → take first 3 letters
+        keyword = name.substring(0, 3).toUpperCase();
+    }
+
+    projectKeywordInput.value = keyword;
+});
+
+// Reset keyword manual flag when opening create modal
+function resetProjectModal() {
+    keywordEditedManually = false;
+    const form = document.getElementById('projectForm');
+    form.action = "{% url 'accounts:create_project' %}";
+    form.reset();
+    document.getElementById('projectModalTitleText').textContent = 'Create New Project/Event';
+    document.getElementById('projectSubmitBtnText').textContent = 'Create Project/Event';
+    document.getElementById('projectKeyword').value = '';
+    document.getElementById('projectStartDate').value = '';
+    document.getElementById('projectEndDate').value = '';
+}
+
+
+</script>
+</body>
+</html>
