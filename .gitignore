@@ -1,1 +1,9 @@
+# Python cache files
+__pycache__/
+*.pyc
+
+# Django DB (never commit)
+db.sqlite3
+
+# Environment
 .env

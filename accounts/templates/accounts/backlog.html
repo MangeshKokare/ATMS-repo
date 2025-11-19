@@ -626,8 +626,8 @@ body {
 
             </span>
 
-            <!-- Actions Dropdown -->
             {% if request.user.role == 'staff' %}
+                
                 {% if task.assigned_to == request.user %}
                     <!-- Staff can move only their own tasks -->
                     <div class="dropdown">
@@ -652,13 +652,18 @@ body {
                         </ul>
                     </div>
                 {% else %}
-                    <!-- Staff view-only if they did NOT assign nor receive the task -->
+                    <!-- Staff view-only -->
                     <div class="text-muted small">
-                        <i class="fas fa-eye"></i> View Only
                     </div>
                 {% endif %}
+
+            {% elif request.user.role == 'coordinator' %}
+                <!-- Coordinators always view-only -->
+                <div class="text-muted small">
+                </div>
+
             {% else %}
-                <!-- Original logic for HOD/Admin -->
+                <!-- HOD/Admin can move tasks -->
                 <div class="dropdown">
                     <button class="task-actions-btn dropdown-toggle" type="button" data-bs-toggle="dropdown">
                         <i class="fas fa-ellipsis-h"></i>
@@ -681,6 +686,7 @@ body {
                     </ul>
                 </div>
             {% endif %}
+
 
         </div>
     </div>
