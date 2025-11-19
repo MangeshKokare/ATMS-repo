@@ -3,6 +3,7 @@
 {% load humanize %}
 {% load time_extras %}
 
+
 {% block title %}Summary{% endblock %}
 
 {% block content %}
@@ -268,10 +269,174 @@
     .task-timer-badge.paused {
         background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
     }
+
+    /* Search and Filter Toolbar */
+    .kanban-toolbar {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        flex-wrap: wrap;
+        margin-bottom: 20px;
+        padding: 16px;
+        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+        border-radius: 10px;
+    }
+
+    .search-box {
+        flex: 1;
+        min-width: 250px;
+        position: relative;
+    }
+
+    .search-box input {
+        width: 100%;
+        padding: 10px 40px 10px 16px;
+        border: 2px solid #e9ecef;
+        border-radius: 8px;
+        font-size: 14px;
+        transition: all 0.3s;
+    }
+
+    .search-box input:focus {
+        outline: none;
+        border-color: var(--jira-blue);
+        box-shadow: 0 0 0 3px rgba(0, 82, 204, 0.1);
+    }
+
+    .search-box i {
+        position: absolute;
+        right: 14px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: var(--jira-gray-700);
+    }
+
+    .filter-group {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+    }
+
+    .filter-select {
+        padding: 10px 16px;
+        border: 2px solid #e9ecef;
+        border-radius: 8px;
+        font-size: 14px;
+        background: white;
+        cursor: pointer;
+        transition: all 0.3s;
+        min-width: 150px;
+    }
+
+    .filter-select:focus {
+        outline: none;
+        border-color: var(--jira-blue);
+        box-shadow: 0 0 0 3px rgba(0, 82, 204, 0.1);
+    }
+
+    .clear-filters-btn {
+        padding: 10px 20px;
+        background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.3s;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .clear-filters-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(255, 107, 107, 0.3);
+    }
+
+    .fullscreen-btn {
+        padding: 10px 20px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.3s;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-left: auto;
+    }
+
+    .fullscreen-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(102, 126, 234, 0.3);
+    }
+
+    /* Fullscreen Mode */
+    .kanban-fullscreen {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background: white;
+        z-index: 9999;
+        overflow: auto;
+        padding: 20px;
+    }
+
+    .kanban-fullscreen .kanban-toolbar {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        background: white;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    .exit-fullscreen-btn {
+        padding: 10px 20px;
+        background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.3s;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-left: auto;
+    }
+
+    .exit-fullscreen-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(250, 112, 154, 0.3);
+    }
+
+    .hidden {
+        display: none !important;
+    }
+
+    /* Filter Active Indicator */
+    .filter-active {
+        border-color: var(--jira-blue) !important;
+        background: var(--jira-blue-light) !important;
+    }
+
+    /* No tasks message styling */
+    .no-tasks-msg {
+        padding: 20px;
+        text-align: center;
+        font-style: italic;
+    }
 </style>
 
 <!-- Page Header -->
-<div class="d-flex align-items-center mb-4">
+<div class="d-flex align-items-center mb-4" id="page-header">
     <h5 class="fw-bold mb-0 me-2">Project/Event</h5>
     <i class="fas fa-chevron-right text-muted"></i>
     <h5 class="fw-bold mb-0 ms-2 text-primary">
@@ -284,7 +449,7 @@
 </div>
 
 <!-- Navigation Tabs -->
-<div class="summary-nav">
+<div class="summary-nav" id="navigation-tabs">
     {% if request.user.role == 'hod' %}
         <a class="summary-nav-item {% if request.resolver_match.url_name == 'hod_dashboard' %}active{% endif %}"
             href="{% url 'accounts:hod_dashboard' %}?project={{ current_project.id }}">
@@ -312,9 +477,9 @@
 </div>
 
 <!-- Content -->
-<div class="summary-content">
+<div class="summary-content" id="summary-content">
     <!-- Top Stats + Status Overview -->
-    <div class="row g-4 mb-4 align-items-stretch">
+    <div class="row g-4 mb-4 align-items-stretch" id="stats-section">
         <!-- Stats Cards -->
         <div class="col-lg-6 d-flex flex-column gap-2 h-100">
             <!-- First Row: Completed, Updated, In Review -->
@@ -397,10 +562,10 @@
                                         {{ done_count|default:0 }}
                                     ],
                                     backgroundColor: [
-                                        '#6c757d',  // Grey for To Do
-                                        '#0d6efd',  // Blue for In Progress
-                                        '#ffc107',  // Yellow for In Review
-                                        '#198754'   // Green for Done
+                                        '#6c757d',
+                                        '#0d6efd',
+                                        '#ffc107',
+                                        '#198754'
                                     ]
                                 }]
                             },
@@ -429,7 +594,7 @@
     <!-- Kanban Tasks -->
     <div class="row g-4">
         <div class="col-12">
-            <div class="card shadow-sm">
+            <div class="card shadow-sm" id="kanban-board">
                 <div class="card-body">
                     <h5 class="card-title"><i class="fas fa-tasks me-1"></i>
                         {% if request.user.role == 'staff' %}All Tasks{% else %}Tasks{% endif %}
@@ -440,19 +605,73 @@
                         Tasks assigned to you (editable) and tasks you've created for others (view-only)
                     </p>
                     {% endif %}
-                    <hr>
-                    <div class="row">
 
+
+                    <!-- Search and Filter Toolbar -->
+                    <div class="kanban-toolbar">
+                        <!-- Search Box -->
+                        <div class="search-box">
+                            <input type="text" id="task-search" placeholder="Search tasks by title or description...">
+                            <i class="fas fa-search"></i>
+                        </div>
+
+                        <!-- Filter by Team -->
+                        <div class="filter-group">
+                            <select class="filter-select" id="filter-team">
+                                <option value="">All Teams</option>
+                                {% for team in teams %}
+                                    <option value="{{ team.id }}">{{ team.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+
+                        <!-- Filter by User -->
+                        <div class="filter-group">
+                            <select class="filter-select" id="filter-user">
+                                <option value="">All Users</option>
+                                {% for user in staff_and_students %}
+                                    <option value="{{ user.id }}"
+                                            data-team-ids="{% for team in user.teams.all %}{{ team.id }}{% if not forloop.last %},{% endif %}{% endfor %}">
+                                        {{ user.email }}
+                                    </option>
+
+
+                                {% endfor %}
+                            </select>
+                        </div>
+
+
+
+                        <!-- Clear Filters -->
+                        <button class="clear-filters-btn" id="clear-filters">
+                            <i class="fas fa-times"></i>
+                            Clear Filters
+                        </button>
+
+                        <!-- Fullscreen Toggle -->
+                        <button class="fullscreen-btn" id="fullscreen-toggle">
+                            <i class="fas fa-expand"></i>
+                            Fullscreen
+                        </button>
+                    </div>
+
+                    <div class="row" id="kanban-columns">
+                    <hr>
                         <!-- To Do Column -->
                         <div class="col-md-4">
                             <div class="kanban-column-header todo">
                                 <i class="fas fa-list"></i>
                                 <span>Yet to Start</span>
                             </div>
+                            <div class="kanban-column-content" data-status="to_do">
                             {% for task in kanban_tasks.to_do %}
-                                <div class="card mb-3 p-3 task-card todo-card">
+                                <div class="card mb-3 p-3 task-card todo-card" 
+                                     data-task-title="{{ task.title|lower }}" 
+                                     data-task-description="{{ task.description|lower }}"
+                                     data-task-team-ids="{{ task.team.id|default:'' }}"
+                                     data-task-user="{{ task.assigned_to.id|default:'' }}">
                                     {% if request.user.role == 'staff' %}
-                                    <!-- Badge for staff users -->
                                     <div class="mb-2">
                                         {% if task.assigned_to == request.user %}
                                             <span class="badge bg-primary">My Task</span>
@@ -471,13 +690,99 @@
                                         {% if not task.team and not task.assigned_to %}Unassigned{% endif %}
                                     </p>
 
+                                    <div class="text-center my-2">
+                                        {% if request.user.role == 'staff' and task.assigned_to != request.user %}
+                                            <div class="task-timer-badge">
+                                                <i class="fas fa-clock me-1"></i>
+                                                <span>
+                                                    {% if task.total_time %}
+                                                        {{ task.total_time|format_duration }}
+                                                    {% else %}
+                                                        In Progress
+                                                    {% endif %}
+                                                </span>
+                                            </div>
+                                        {% else %}
+                                            <div class="task-timer-badge {% if task.is_paused %}paused{% endif %}" id="task-timer-{{ task.id }}">
+                                                <i class="fas fa-clock me-1"></i>
+                                                <span id="task-time-{{ task.id }}">0h 0m 0s</span>
+                                            </div>
+                                        {% endif %}
+                                    </div>
+
+                                    {% if task.subtasks.all %}
+                                        <div class="mt-3 mb-2">
+                                            <small class="text-muted fw-bold">Subtasks:</small>
+                                            {% for subtask in task.subtasks.all %}
+                                                <div class="subtask d-flex justify-content-between align-items-center mb-2 p-2 bg-light rounded"
+                                                    {% if request.user.role != 'staff' or task.assigned_to == request.user %}
+                                                    id="subtask-{{ subtask.id }}"
+                                                    data-subtask-id="{{ subtask.id }}"
+                                                    data-task-id="{{ task.id }}"
+                                                    data-time-spent="{{ subtask.time_spent_seconds|default:0 }}"
+                                                    {% endif %}>
+                                                    
+                                                    <div>
+                                                        <strong class="small">{{ subtask.title }}</strong><br>
+                                                        <span class="badge bg-secondary" 
+                                                              {% if request.user.role != 'staff' or task.assigned_to == request.user %}
+                                                              id="timer-{{ subtask.id }}"
+                                                              {% endif %}>
+                                                            {{ subtask.time_spent_seconds|format_duration }}
+                                                        </span>
+                                                    </div>
+                                                    
+                                                    {% if request.user.role == 'staff' and task.assigned_to != request.user %}
+                                                    {% else %}
+                                                        <div>
+                                                            {% if not is_read_only %}
+                                                                <button class="btn btn-sm btn-success" id="start-{{ subtask.id }}" 
+                                                                    onclick="startSubtaskTimer({{ subtask.id }}, {{ subtask.time_spent_seconds|default:0 }})">
+                                                                    <i class="fas fa-play"></i>
+                                                                </button>
+                                                                <button class="btn btn-sm btn-danger" id="stop-{{ subtask.id }}" 
+                                                                    onclick="stopSubtaskTimer({{ subtask.id }})" disabled>
+                                                                    <i class="fas fa-stop"></i>
+                                                                </button>
+                                                            {% else %}
+                                                                <button class="btn btn-sm btn-success" disabled title="Read Only"><i class="fas fa-play"></i></button>
+                                                                <button class="btn btn-sm btn-danger" disabled title="Read Only"><i class="fas fa-stop"></i></button>
+                                                            {% endif %}
+                                                        </div>
+                                                    {% endif %}
+                                                </div>
+                                            {% endfor %}
+                                        </div>
+                                    {% endif %}
+
                                     <div class="task-actions">
                                         {% if request.user.role == 'staff' %}
-                                            {% if task.assigned_to == request.user and not is_read_only %}
-                                                <button type="button" class="task-action-btn btn-move-progress" onclick="startTask({{ task.id }})">
-                                                    <i class="fas fa-play"></i>
-                                                    <span>Start Working</span>
-                                                </button>
+                                            {% if task.assigned_to == request.user %}
+                                                {% if not is_read_only %}
+                                                    <button type="button" class="task-action-btn btn-pause-task" id="pause-btn-{{ task.id }}" onclick="pauseTask({{ task.id }})" {% if task.is_paused %}style="display: none;"{% endif %}>
+                                                        <i class="fas fa-pause"></i>
+                                                        <span>Pause Task</span>
+                                                    </button>
+                                                    <button type="button" class="task-action-btn btn-resume-task" id="resume-btn-{{ task.id }}" onclick="resumeTask({{ task.id }})" {% if not task.is_paused %}style="display: none;"{% endif %}>
+                                                        <i class="fas fa-play"></i>
+                                                        <span>Resume Task</span>
+                                                    </button>
+                                                    <form method="POST" action="{% url 'accounts:update_task_status' %}" onsubmit="return beforeComplete({{ task.id }})">
+                                                        {% csrf_token %}
+                                                        <input type="hidden" name="task_id" value="{{ task.id }}">
+                                                        <input type="hidden" name="new_status" value="done">
+                                                        <input type="hidden" name="total_time" id="total-time-{{ task.id }}" value="0">
+                                                        <button type="submit" class="task-action-btn btn-move-done">
+                                                            <i class="fas fa-check"></i>
+                                                            <span>Mark Complete</span>
+                                                        </button>
+                                                    </form>
+                                                {% else %}
+                                                    <button type="button" class="task-action-btn btn-pause-task" disabled title="Read only">
+                                                        <i class="fas fa-pause"></i>
+                                                        <span>Read only</span>
+                                                    </button>
+                                                {% endif %}
                                             {% else %}
                                                 <div class="alert alert-info small mb-0 text-center py-2">
                                                     <i class="fas fa-eye me-1"></i>View Only
@@ -485,40 +790,66 @@
                                             {% endif %}
                                         {% else %}
                                             {% if not is_read_only %}
-                                            <button type="button" class="task-action-btn btn-move-progress" onclick="startTask({{ task.id }})">
-                                                <i class="fas fa-play"></i>
-                                                <span>Start Working</span>
-                                            </button>
+                                                <button type="button" class="task-action-btn btn-pause-task" id="pause-btn-{{ task.id }}" onclick="pauseTask({{ task.id }})" {% if task.is_paused %}style="display: none;"{% endif %}>
+                                                    <i class="fas fa-pause"></i>
+                                                    <span>Pause Task</span>
+                                                </button>
+                                                <button type="button" class="task-action-btn btn-resume-task" id="resume-btn-{{ task.id }}" onclick="resumeTask({{ task.id }})" {% if not task.is_paused %}style="display: none;"{% endif %}>
+                                                    <i class="fas fa-play"></i>
+                                                    <span>Resume Task</span>
+                                                </button>
+                                                <form method="POST" action="{% url 'accounts:update_task_status' %}" onsubmit="return beforeComplete({{ task.id }})">
+                                                    {% csrf_token %}
+                                                    <input type="hidden" name="task_id" value="{{ task.id }}">
+                                                    <input type="hidden" name="new_status" value="done">
+                                                    <input type="hidden" name="total_time" id="total-time-{{ task.id }}" value="0">
+                                                    <button type="submit" class="task-action-btn btn-move-done">
+                                                        <i class="fas fa-check"></i>
+                                                        <span>Mark Complete</span>
+                                                    </button>
+                                                </form>
                                             {% else %}
-                                            <button type="button" class="task-action-btn btn-move-progress" disabled title="Read only"> 
-                                                <i class="fas fa-play"></i>
-                                                <span>Read only</span>
-                                            </button>
+                                                <button type="button" class="task-action-btn btn-pause-task" disabled title="Read only" {% if task.is_paused %}style="display:none;"{% endif %}>
+                                                    <i class="fas fa-pause"></i>
+                                                    <span>Read only</span>
+                                                </button>
+                                                <button type="button" class="task-action-btn btn-resume-task" disabled title="Read only" {% if not task.is_paused %}style="display:none;"{% endif %}>
+                                                    <i class="fas fa-play"></i>
+                                                    <span>Read only</span>
+                                                </button>
+                                                <button class="task-action-btn btn-move-done" disabled title="Read only">
+                                                    <i class="fas fa-check"></i>
+                                                    <span>Read only</span>
+                                                </button>
                                             {% endif %}
                                         {% endif %}
                                     </div>
                                 </div>
                             {% empty %}
-                                <p class="text-muted text-center">No tasks</p>
+                                <p class="text-muted text-center no-tasks-msg">No tasks</p>
                             {% endfor %}
+                            </div>
                         </div>
-
                         <!-- In Progress Column -->
                         <div class="col-md-4">
                             <div class="kanban-column-header progress">
                                 <i class="fas fa-spinner fa-spin"></i>
                                 <span>In Progress</span>
                             </div>
+                            <div class="kanban-column-content" data-status="in_progress">
                             {% for task in kanban_tasks.in_progress %}
-                                <div class="card mb-3 p-3 task-card progress-card" 
-                                     {% if request.user.role != 'staff' or task.assigned_to == request.user %}
-                                     id="task-card-{{ task.id }}" 
-                                     data-task-id="{{ task.id }}"
-                                     data-start-time="{{ task.start_time|date:'c' }}"
-                                     data-accumulated-time="{{ task.accumulated_time|default:0 }}"
-                                     data-is-paused="{{ task.is_paused|default:'false' }}"
-                                     data-pause-time="{{ task.pause_time|date:'c'|default:'' }}"
-                                     {% endif %}>
+                                <div class="card mb-3 p-3 task-card progress-card"
+                                    data-task-title="{{ task.title|lower }}"
+                                    data-task-description="{{ task.description|lower }}"
+                                    data-task-team-ids="{{ task.team.id|default:'' }}"
+                                    data-task-user="{{ task.assigned_to.id|default:'' }}"
+                                    id="task-card-{{ task.id }}"
+                                    data-task-id="{{ task.id }}"
+                                    data-start-time="{{ task.start_time|date:'c' }}"
+                                    data-accumulated-time="{{ task.accumulated_time|default:0 }}"
+                                    data-is-paused="{{ task.is_paused|default:'false' }}"
+                                    data-pause-time="{{ task.pause_time|date:'c'|default:'' }}">
+
                                     
                                     {% if request.user.role == 'staff' %}
                                     <!-- Badge for staff users -->
@@ -684,20 +1015,24 @@
                                     </div>
                                 </div>
                             {% empty %}
-                                <p class="text-muted text-center">No tasks</p>
+                                <p class="text-muted text-center no-tasks-msg">No tasks</p>
                             {% endfor %}
+                            </div>
                         </div>
-
                         <!-- Done Column -->
                         <div class="col-md-4">
                             <div class="kanban-column-header done">
                                 <i class="fas fa-check-circle"></i>
                                 <span>Done</span>
                             </div>
+                            <div class="kanban-column-content" data-status="done">
                             {% for task in kanban_tasks.done %}
-                                <div class="card mb-3 p-3 task-card done-card">
+                                <div class="card mb-3 p-3 task-card done-card"
+                                    data-task-title="{{ task.title|lower }}"
+                                    data-task-description="{{ task.description|lower }}"
+                                    data-task-team-ids="{{ task.team.id|default:'' }}"
+                                    data-task-user="{{ task.assigned_to.id|default:'' }}">
                                     {% if request.user.role == 'staff' %}
-                                    <!-- Badge for staff users -->
                                     <div class="mb-2">
                                         {% if task.assigned_to == request.user %}
                                             <span class="badge bg-primary">My Task</span>
@@ -723,7 +1058,6 @@
                                     <div class="task-actions">
                                         {% if request.user.role == 'staff' %}
                                             {% if task.assigned_to == request.user %}
-                                                <!-- User can reopen their own tasks -->
                                                 {% if not is_read_only %}
                                                 <form method="POST" action="{% url 'accounts:update_task_status' %}">
                                                     {% csrf_token %}
@@ -741,13 +1075,11 @@
                                                 </button>
                                                 {% endif %}
                                             {% else %}
-                                                <!-- View-only for created tasks -->
                                                 <div class="alert alert-success small mb-0 text-center py-2">
                                                     <i class="fas fa-check-circle me-1"></i>Completed
                                                 </div>
                                             {% endif %}
                                         {% else %}
-                                            <!-- Original logic for non-staff users -->
                                             {% if not is_read_only %}
                                             <form method="POST" action="{% url 'accounts:update_task_status' %}">
                                                 {% csrf_token %}
@@ -768,8 +1100,9 @@
                                     </div>
                                 </div>
                             {% empty %}
-                                <p class="text-muted text-center">No tasks</p>
+                                <p class="text-muted text-center no-tasks-msg">No tasks</p>
                             {% endfor %}
+                            </div>
                         </div>
 
                     </div>
@@ -782,13 +1115,10 @@
 
 {% if is_read_only %}
 <script>
-    // Prevent all task actions for Coordinators
     function startTask(){ return; }
     function pauseTask(){ return; }
     function resumeTask(){ return; }
     function beforeComplete(){ return false; }
-
-    // Prevent subtask actions
     function startSubtaskTimer(){ return; }
     function stopSubtaskTimer(){ return; }
 </script>
@@ -799,7 +1129,7 @@
 const taskTimers = {};
 const subtaskTimers = {};
 
-// Start a task (move from Yet to Start to In Progress)
+// Start a task
 function startTask(taskId) {
     fetch("{% url 'accounts:start_task_timer' %}", {
         method: 'POST',
@@ -894,7 +1224,8 @@ function startTimerInterval(taskId){
     taskTimers[taskId]={ intervalId:setInterval(()=>updateTaskTimer(taskId),1000) };
 }
 
-document.addEventListener('DOMContentLoaded', ()=>{
+window.addEventListener('load', ()=>{
+
     document.querySelectorAll('.progress-card').forEach(card=>{
         const taskId = card.dataset.taskId;
         if(!taskId) return;
@@ -902,6 +1233,10 @@ document.addEventListener('DOMContentLoaded', ()=>{
         updateTaskTimer(taskId);
         if(card.dataset.isPaused!=='true') startTimerInterval(taskId);
     });
+
+    // Initialize search and filter functionality
+    initializeSearchAndFilter();
+    initializeFullscreen();
 });
 
 function beforeComplete(taskId){
@@ -969,6 +1304,169 @@ function getCookie(name){
         }
     });
     return cookieValue;
+}
+
+// Search and Filter Functionality
+function initializeSearchAndFilter() {
+    const searchInput = document.getElementById('task-search');
+    const teamFilter = document.getElementById('filter-team');
+    const userFilter = document.getElementById('filter-user');
+    const clearBtn = document.getElementById('clear-filters');
+
+    // Store all user options for filtering
+    const allUserOptions = Array.from(userFilter.options);
+
+    // Search functionality
+    searchInput.addEventListener('input', filterTasks);
+
+    // Team filter change
+    teamFilter.addEventListener('change', function() {
+        const selectedTeamId = this.value;
+        
+        // Update user filter options based on selected team
+        userFilter.innerHTML = '<option value="">All Users</option>';
+        
+        allUserOptions.forEach(option => {
+            if (option.value === '') return; // Skip "All Users" option
+            
+            // Get comma-separated team IDs as array
+            const teamIds = (option.dataset.teamIds || "").split(",").filter(x => x);
+
+            // Check if selected team is in the list
+            if (!selectedTeamId || teamIds.includes(selectedTeamId)) {
+                userFilter.appendChild(option.cloneNode(true));
+            }
+
+        });
+
+        // Reset user filter selection
+        userFilter.value = '';
+        
+        // Apply visual indicator
+        if (selectedTeamId) {
+            teamFilter.classList.add('filter-active');
+        } else {
+            teamFilter.classList.remove('filter-active');
+        }
+        
+        filterTasks();
+    });
+
+    // User filter change
+    userFilter.addEventListener('change', function() {
+        if (this.value) {
+            userFilter.classList.add('filter-active');
+        } else {
+            userFilter.classList.remove('filter-active');
+        }
+        filterTasks();
+    });
+
+    // Clear filters
+    clearBtn.addEventListener('click', function() {
+        searchInput.value = '';
+        teamFilter.value = '';
+        userFilter.value = '';
+        teamFilter.classList.remove('filter-active');
+        userFilter.classList.remove('filter-active');
+        
+        // Reset user options to show all
+        userFilter.innerHTML = '<option value="">All Users</option>';
+        allUserOptions.forEach(option => {
+            if (option.value !== '') {
+                userFilter.appendChild(option.cloneNode(true));
+            }
+        });
+        
+        filterTasks();
+    });
+}
+
+function filterTasks() {
+    const searchTerm = document.getElementById('task-search').value.toLowerCase();
+    const selectedTeam = document.getElementById('filter-team').value;
+    const selectedUser = document.getElementById('filter-user').value;
+
+    const allColumns = document.querySelectorAll('.kanban-column-content');
+    
+    allColumns.forEach(column => {
+        const tasks = column.querySelectorAll('.task-card');
+        let visibleCount = 0;
+
+        tasks.forEach(task => {
+            const title = task.dataset.taskTitle || '';
+            const description = task.dataset.taskDescription || '';
+            const taskTeams = (task.dataset.taskTeamIds || "").split(",").filter(x => x);
+            const taskUser = task.dataset.taskUser || '';
+
+            // Check search term
+            const matchesSearch = !searchTerm || 
+                                title.includes(searchTerm) || 
+                                description.includes(searchTerm);
+
+            // Check team filter
+            const matchesTeam = !selectedTeam || taskTeams.includes(selectedTeam);
+
+            // Check user filter
+            const matchesUser = !selectedUser || taskUser === selectedUser;
+
+            // Show/hide task based on all criteria
+            if (matchesSearch && matchesTeam && matchesUser) {
+                task.style.display = '';
+                visibleCount++;
+            } else {
+                task.style.display = 'none';
+            }
+        });
+
+        // Update "No tasks" message
+        const noTasksMsg = column.querySelector('.no-tasks-msg');
+        if (noTasksMsg) {
+            noTasksMsg.style.display = visibleCount === 0 ? 'block' : 'none';
+        }
+    });
+}
+
+// Fullscreen Functionality
+function initializeFullscreen() {
+    const fullscreenBtn = document.getElementById('fullscreen-toggle');
+    const kanbanBoard = document.getElementById('kanban-board');
+    const pageHeader = document.getElementById('page-header');
+    const navigationTabs = document.getElementById('navigation-tabs');
+    const statsSection = document.getElementById('stats-section');
+
+    fullscreenBtn.addEventListener('click', function() {
+        const isFullscreen = kanbanBoard.classList.contains('kanban-fullscreen');
+        
+        if (isFullscreen) {
+            // Exit fullscreen
+            kanbanBoard.classList.remove('kanban-fullscreen');
+            pageHeader.classList.remove('hidden');
+            navigationTabs.classList.remove('hidden');
+            statsSection.classList.remove('hidden');
+            
+            // Update button
+            fullscreenBtn.innerHTML = '<i class="fas fa-expand"></i> Fullscreen';
+            fullscreenBtn.className = 'fullscreen-btn';
+        } else {
+            // Enter fullscreen
+            kanbanBoard.classList.add('kanban-fullscreen');
+            pageHeader.classList.add('hidden');
+            navigationTabs.classList.add('hidden');
+            statsSection.classList.add('hidden');
+            
+            // Update button
+            fullscreenBtn.innerHTML = '<i class="fas fa-compress"></i> Exit Fullscreen';
+            fullscreenBtn.className = 'exit-fullscreen-btn';
+        }
+    });
+
+    // ESC key to exit fullscreen
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && kanbanBoard.classList.contains('kanban-fullscreen')) {
+            fullscreenBtn.click();
+        }
+    });
 }
 </script>
 

@@ -643,7 +643,12 @@ body {
                                         <input type="hidden" name="task_id" value="{{ task.id }}">
                                         <input type="hidden" name="new_status" value="{{ status_value }}">
                                         <button type="submit" class="task-dropdown-item">
-                                            Move to {{ status_name }}
+                                            {% if status_value == 'to_do' %}
+                                                Move to Yet to Start
+                                            {% else %}
+                                                Move to {{ status_name }}
+                                            {% endif %}
+
                                         </button>
                                     </form>
                                 </li>
@@ -677,7 +682,12 @@ body {
                                     <input type="hidden" name="task_id" value="{{ task.id }}">
                                     <input type="hidden" name="new_status" value="{{ status_value }}">
                                     <button type="submit" class="task-dropdown-item">
-                                        Move to {{ status_name }}
+                                        {% if status_value == 'to_do' %}
+                                            Move to Yet to Start
+                                        {% else %}
+                                            Move to {{ status_name }}
+                                        {% endif %}
+
                                     </button>
                                 </form>
                             </li>

@@ -339,6 +339,9 @@ def hod_dashboard(request):
         "total_projects": projects_qs.count(),
         "staff_by_campus": [{'campus': c, 'count': staff_qs.filter(campus=c).count()} for c in hod_campuses],
         "staff_by_department": [{'department': d, 'count': staff_qs.filter(department=d).count()} for d in hod_departments],
+
+
+
     }
 
     return render(request, "accounts/summary.html", context)
@@ -3191,6 +3194,8 @@ def create_department(request):
             Department.objects.create(name=name, campus=campus, school=school)
         return redirect('accounts:admin_dashboard')
 
+# Your views already have staff_and_students! ✅
+# Just make sure coordinator_dashboard also has it:
 
 @login_required
 def coordinator_dashboard(request):
@@ -3301,6 +3306,14 @@ def coordinator_dashboard(request):
     teams = all_allowed_teams.filter(project=current_project) if current_project else all_allowed_teams
 
     # ---------------------------------------------------
+    # 🆕 ADD THIS: Staff and Students for Filters
+    # ---------------------------------------------------
+    staff_and_students = CustomUser.objects.filter(
+        campus=coordinator_campus,
+        role__in=['staff', 'student']
+    ).order_by('email').distinct()
+
+    # ---------------------------------------------------
     # 7️⃣ 🔥 Project Status Analytics (Using DATE ONLY)
     # ---------------------------------------------------
     total_projects = projects_qs.count()
@@ -3388,12 +3401,13 @@ def coordinator_dashboard(request):
         "total_teams": teams.count(),
         "recent_projects": recent_projects_list,
 
+        # 🆕 ADD THIS LINE
+        "staff_and_students": staff_and_students,
+
         "is_read_only": True,
     }
 
     return render(request, "accounts/summary.html", context)
-
-
 
 @login_required
 def coordinator_dashboard_1(request):
