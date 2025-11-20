@@ -931,6 +931,9 @@ document.addEventListener("DOMContentLoaded", function() {
     // Form submission handler with validation
     if (csvUploadForm) {
         csvUploadForm.addEventListener('submit', function(e) {
+            console.log('Form submitting...');
+            console.log('File:', csvFileInput.files[0]);
+            console.log('Form data:', new FormData(csvUploadForm));
             if (!csvFileInput.files || csvFileInput.files.length === 0) {
                 e.preventDefault();
                 alert('Please select a CSV file to upload.');

@@ -494,106 +494,206 @@ import csv
 from django.http import HttpResponse, JsonResponse
 from django.contrib import messages
 
+from django.contrib.auth.decorators import login_required
+from django.contrib import messages
+from django.shortcuts import redirect
+import csv
 
 @login_required
 def upload_staff_csv(request):
+    """
+    Upload staff members from CSV file.
+    Expected CSV columns: email, emp_id, phone_number, campus_name, school_name, department_names
+    """
     if request.method == 'POST' and request.FILES.get('csv_file'):
         csv_file = request.FILES['csv_file']
 
+        # Validate file type
+        if not csv_file.name.endswith('.csv'):
+            messages.error(request, 'Please upload a valid CSV file.')
+            return redirect('accounts:hod_staff')
+
+        # Validate file size (5MB limit)
+        if csv_file.size > 5 * 1024 * 1024:
+            messages.error(request, 'File size exceeds 5MB limit.')
+            return redirect('accounts:hod_staff')
+
         try:
-            decoded_file = csv_file.read().decode('utf-8').splitlines()
+            # Decode the CSV file
+            decoded_file = csv_file.read().decode('utf-8-sig').splitlines()  # utf-8-sig handles BOM
             reader = csv.DictReader(decoded_file)
+
+            # Validate headers (case-insensitive)
+            fieldnames_lower = [f.lower().strip() for f in reader.fieldnames]
+            required_headers = ['email', 'emp_id', 'phone_number', 'campus_name', 'school_name', 'department_names']
+            
+            if not all(header in fieldnames_lower for header in required_headers):
+                messages.error(
+                    request, 
+                    f'CSV must contain these columns: {", ".join(required_headers)}. Found: {", ".join(reader.fieldnames)}'
+                )
+                return redirect('accounts:hod_staff')
 
             success_count = 0
             error_count = 0
-            error_rows = []
+            error_details = []
 
-            for row_number, row in enumerate(reader, start=2):  # Start at 2 for header row offset
+            for row_number, row in enumerate(reader, start=2):  # Start at 2 (accounting for header)
                 try:
-                    # Get or create Campus and School
-                    campus_name = row.get('campus_name', '').strip()
-                    school_name = row.get('school_name', '').strip()
-                    if not campus_name or not school_name:
-                        raise ValueError("Campus or School name missing.")
+                    # Extract fields (handle case variations)
+                    email = row.get('email', row.get('Email', '')).strip()
+                    emp_id = row.get('emp_id', row.get('Emp ID', row.get('emp id', ''))).strip()
+                    phone_number = row.get('phone_number', row.get('Phone Number', row.get('phone', ''))).strip()
+                    campus_name = row.get('campus_name', row.get('Campus', row.get('campus', ''))).strip()
+                    school_name = row.get('school_name', row.get('School', row.get('school', ''))).strip()
+                    department_names = row.get('department_names', row.get('Departments', row.get('departments', ''))).strip()
 
-                    campus, _ = Campus.objects.get_or_create(name=campus_name)
-                    school, _ = School.objects.get_or_create(name=school_name, campus=campus)
-
-                    # Create or update staff
-                    email = row.get('email', '').strip()
+                    # Validate required fields
                     if not email:
-                        raise ValueError("Email is missing.")
+                        raise ValueError("Email is required")
+                    if not emp_id:
+                        raise ValueError("Employee ID is required")
+                    if not campus_name:
+                        raise ValueError("Campus name is required")
+                    if not school_name:
+                        raise ValueError("School name is required")
+                    if not department_names:
+                        raise ValueError("At least one department is required")
 
-                    staff, created = User.objects.update_or_create(
+                    # Validate email format
+                    if '@' not in email:
+                        raise ValueError(f"Invalid email format: {email}")
+
+                    # Get or create Campus
+                    campus, campus_created = Campus.objects.get_or_create(name=campus_name)
+                    if campus_created:
+                        print(f"Created new campus: {campus_name}")
+
+                    # Get or create School
+                    school, school_created = School.objects.get_or_create(
+                        name=school_name,
+                        campus=campus
+                    )
+                    if school_created:
+                        print(f"Created new school: {school_name}")
+
+                    # Create or update staff user
+                    user, user_created = CustomUser.objects.update_or_create(
                         email=email,
                         defaults={
-                            'emp_id': row.get('emp_id', '').strip(),
-                            'phone_number': row.get('phone_number', '').strip(),
+                            'username': email.split('@')[0],  # Use email prefix as username
+                            'emp_id': emp_id,
+                            'phone_number': phone_number,
+                            'phone_no': phone_number,  # You have both fields, set both
                             'campus': campus,
                             'school': school,
-                            'role': 'staff',  # ensure role field exists
+                            'role': 'staff',
+                            'is_active': True,
+                            'is_staff': False,  # is_staff is for Django admin access
                         }
                     )
 
-                    # Set default password for new users
-                    if created:
-                        staff.set_password('Default123!')
-                        staff.save()
+                    # Set default password for newly created users only
+                    if user_created:
+                        user.set_password('Default123!')
+                        user.save()
+                        print(f"Created new user: {email}")
+                    else:
+                        print(f"Updated existing user: {email}")
 
-                    # Handle multiple departments
-                    dept_names = row.get('department_names', '').split(';')
+                    # Handle multiple departments (separated by semicolon or comma)
+                    # Support both ; and , as separators
+                    department_names = department_names.replace(';', ',')
+                    department_list = [d.strip() for d in department_names.split(',') if d.strip()]
+                    
+                    if not department_list:
+                        raise ValueError("No valid department names found")
+
                     departments = []
-                    for dept_name in dept_names:
-                        dept_name = dept_name.strip()
-                        if dept_name:
-                            # Create department if it doesn't exist and attach
-                            department, _ = Department.objects.get_or_create(
-                                name=dept_name,
-                                school=school
-                            )
-                            departments.append(department)
+                    for dept_name in department_list:
+                        # Get or create department
+                        department, dept_created = Department.objects.get_or_create(
+                            name=dept_name,
+                            school=school,
+                            campus=campus
+                        )
+                        if dept_created:
+                            print(f"Created new department: {dept_name}")
+                        departments.append(department)
 
-                    staff.department.set(departments)  # Update M2M field
+                    # Set departments (ManyToMany relationship)
+                    user.department.set(departments)
+                    print(f"Set {len(departments)} department(s) for user {email}")
+
                     success_count += 1
 
                 except Exception as row_error:
                     error_count += 1
-                    error_rows.append((row_number, str(row_error)))
-                    print(f"Error processing row {row_number}: {row} - {row_error}")
+                    error_msg = f"Row {row_number} ({row.get('email', 'unknown')}): {str(row_error)}"
+                    error_details.append(error_msg)
+                    print(f"❌ Error processing row {row_number}: {row_error}")
+                    import traceback
+                    traceback.print_exc()
 
-            if success_count:
-                messages.success(request, f'Successfully imported {success_count} staff members.')
-            if error_count:
-                messages.error(
+            # Display results
+            if success_count > 0:
+                messages.success(
                     request, 
-                    f'Failed to import {error_count} rows. Errors: {error_rows}'
+                    f'✅ Successfully imported {success_count} staff member(s).'
                 )
 
+            if error_count > 0:
+                # Limit error messages to first 5 to avoid overwhelming the UI
+                displayed_errors = error_details[:5]
+                error_message = f'❌ Failed to import {error_count} row(s). '
+                if len(error_details) > 5:
+                    error_message += f'First 5 errors: {"; ".join(displayed_errors)}... and {len(error_details) - 5} more.'
+                else:
+                    error_message += f'Errors: {"; ".join(displayed_errors)}'
+                
+                messages.error(request, error_message)
+
+            if success_count == 0 and error_count == 0:
+                messages.warning(request, 'No valid data found in CSV file.')
+
+        except UnicodeDecodeError as e:
+            messages.error(request, f'Unable to read CSV file. Please ensure it is UTF-8 encoded. Error: {str(e)}')
+            print(f"UnicodeDecodeError: {e}")
         except Exception as e:
             messages.error(request, f'Error processing CSV file: {str(e)}')
+            print(f"❌ CSV Upload Error: {str(e)}")
+            import traceback
+            traceback.print_exc()
+
+    else:
+        messages.error(request, 'No file uploaded or invalid request.')
 
     return redirect('accounts:hod_staff')
 
 
-
 @login_required
 def download_staff_csv_template(request):
+    """
+    Generate a CSV template for uploading staff.
+    Includes sample data based on current user's campus/school/departments.
+    """
     user = request.user
 
     # Ensure only HODs can access this feature
     if user.role != 'hod':
-        return HttpResponse("You are not authorized to download this template.", status=403)
+        messages.error(request, "You are not authorized to download this template.")
+        return redirect('accounts:hod_staff')
 
     # Fetch related fields
-    campus_name = user.campus.name if hasattr(user, 'campus') and user.campus else ''
-    school_name = user.school.name if hasattr(user, 'school') and user.school else ''
+    campus_name = user.campus.name if user.campus else 'Main Campus'
+    school_name = user.school.name if user.school else 'Engineering'
 
     # Handle multiple departments (if HOD manages more than one)
-    if hasattr(user, 'department'):
+    if user.department.exists():
         departments = user.department.all()
         department_names = ";".join([dept.name for dept in departments])
     else:
-        department_names = ''
+        department_names = 'Computer Science;Information Technology'
 
     # Prepare the response
     response = HttpResponse(content_type='text/csv')
@@ -601,11 +701,29 @@ def download_staff_csv_template(request):
     response['Content-Disposition'] = f'attachment; filename="{filename}"'
 
     writer = csv.writer(response)
+    
+    # Write header
     writer.writerow(['email', 'emp_id', 'phone_number', 'campus_name', 'school_name', 'department_names'])
-    writer.writerow(['staff@example.com', 'EMP001', '1234567890', campus_name, school_name, department_names])
+    
+    # Write sample rows
+    writer.writerow([
+        'staff1@example.com', 
+        'EMP001', 
+        '9876543210', 
+        campus_name, 
+        school_name, 
+        department_names
+    ])
+    writer.writerow([
+        'staff2@example.com', 
+        'EMP002', 
+        '9876543211', 
+        campus_name, 
+        school_name, 
+        'Computer Science'  # Single department example
+    ])
 
     return response
-
 
 
 
@@ -3408,7 +3526,6 @@ def coordinator_dashboard(request):
     }
 
     return render(request, "accounts/summary.html", context)
-
 @login_required
 def coordinator_dashboard_1(request):
     user = request.user
@@ -3419,7 +3536,7 @@ def coordinator_dashboard_1(request):
     now = timezone.now()
     today = now.date()
 
-    # Helper: Pure date-based status logic
+    # Helper for project date-based status
     def get_project_status(project):
         if project.start_date and project.end_date:
             if today < project.start_date:
@@ -3431,7 +3548,7 @@ def coordinator_dashboard_1(request):
         return "upcoming"
 
     # ---------------------------------------------------
-    # 1️⃣ Extract Campus → Schools → Departments
+    # 1️⃣ Campus → Schools → Departments → Users
     # ---------------------------------------------------
     coordinator_campus = user.campus
 
@@ -3440,29 +3557,35 @@ def coordinator_dashboard_1(request):
     campus_users = CustomUser.objects.filter(campus=coordinator_campus)
 
     # ---------------------------------------------------
-    # 2️⃣ School Filter
+    # 2️⃣ SCHOOL FILTER
     # ---------------------------------------------------
-    selected_school_id = request.GET.get('school')
+    selected_school_id = request.GET.get("school")
     selected_school = None
 
     if selected_school_id:
         selected_school = School.objects.filter(
-            id=selected_school_id,
+            id=selected_school_id, 
             campus=coordinator_campus
         ).first()
 
         if selected_school:
+            # Only keep selected school
+            schools = schools.filter(id=selected_school.id)
+
+            # Filter departments & users to selected school
             departments = departments.filter(school=selected_school)
             campus_users = campus_users.filter(school=selected_school)
 
     # ---------------------------------------------------
-    # 3️⃣ Project Query
+    # 3️⃣ PROJECT QUERY (TRUE SCHOOL FILTER)
     # ---------------------------------------------------
+    if selected_school:
+        project_departments = Department.objects.filter(school=selected_school)
+    else:
+        project_departments = departments
+
     projects_qs = Project.objects.filter(
-        Q(created_by__in=campus_users) |
-        Q(tasks__assigned_to__in=campus_users) |
-        Q(teams__members__in=campus_users) |
-        Q(department__in=departments)
+        department__in=project_departments
     ).distinct()
 
     # ---------------------------------------------------
@@ -3475,13 +3598,9 @@ def coordinator_dashboard_1(request):
     current_project = projects_qs.filter(id=selected_project_id).first() if selected_project_id else None
 
     # ---------------------------------------------------
-    # 5️⃣ Tasks
+    # 5️⃣ TASKS (Filtered by selected school + project)
     # ---------------------------------------------------
-    tasks_qs = Task.objects.filter(
-        Q(project__in=projects_qs) |
-        Q(assigned_to__in=campus_users) |
-        Q(team__members__in=campus_users)
-    ).distinct()
+    tasks_qs = Task.objects.filter(project__in=projects_qs).distinct()
 
     if current_project:
         tasks_qs = tasks_qs.filter(project=current_project)
@@ -3508,17 +3627,16 @@ def coordinator_dashboard_1(request):
     ).count()
 
     # ---------------------------------------------------
-    # 6️⃣ Teams
+    # 6️⃣ TEAMS (Filtered by school → projects)
     # ---------------------------------------------------
     all_allowed_teams = Team.objects.filter(
-        Q(project__in=projects_qs) |
-        Q(members__in=campus_users)
+        project__in=projects_qs
     ).distinct()
 
     teams = all_allowed_teams.filter(project=current_project) if current_project else all_allowed_teams
 
     # ---------------------------------------------------
-    # 7️⃣ 🔥 Project Status Analytics (Using DATE ONLY)
+    # 7️⃣ PROJECT STATUS ANALYTICS
     # ---------------------------------------------------
     total_projects = projects_qs.count()
     ongoing_projects = 0
@@ -3553,7 +3671,7 @@ def coordinator_dashboard_1(request):
     # ---------------------------------------------------
     departments_with_counts = []
     for dept in departments:
-        count = projects_qs.filter(department=dept).count()
+        count = projects_qs.filter(department=dept).distinct().count()
         departments_with_counts.append({
             "id": dept.id,
             "name": dept.name,
@@ -3562,11 +3680,12 @@ def coordinator_dashboard_1(request):
         })
 
     # ---------------------------------------------------
-    # 🔟 Recent Projects List (DATE BASED STATUS)
+    # 🔟 Recent Projects List
     # ---------------------------------------------------
     recent_projects_list = []
     for project in projects_qs.order_by('-created_at')[:20]:
         school_name = project.department.first().school.name if project.department.exists() else "No School"
+
         recent_projects_list.append({
             'id': project.id,
             'name': project.name,
@@ -3576,8 +3695,12 @@ def coordinator_dashboard_1(request):
             'status': get_project_status(project)
         })
 
+    # ---------------------------------------------------
+    # CONTEXT
+    # ---------------------------------------------------
     context = {
         "active_tab": "summary",
+
         "kanban_tasks": kanban_tasks,
         "todo_count": todo_count,
         "in_progress_count": in_progress_count,

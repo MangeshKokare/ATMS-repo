@@ -56,8 +56,79 @@
       flex-shrink: 0;
       position: relative;
       height: 100%;
-      transition: transform 0.3s ease-in-out;
+      transition: transform 0.3s ease-in-out, margin-left 0.3s ease-in-out;
     }
+
+    .sidebar.hidden {
+      margin-left: -280px;
+    }
+
+    /* Sidebar Hide Button (inside sidebar) */
+    .sidebar-hide-btn {
+      position: absolute;
+      top: 20px;
+      right: 16px;
+      z-index: 10;
+      width: 32px;
+      height: 32px;
+      border-radius: 6px;
+      background-color: transparent;
+      color: var(--secondary-text);
+      border: 1px solid var(--border-color);
+      display: flex !important;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .sidebar-hide-btn:hover {
+      background-color: var(--atms-blue);
+      color: white;
+      border-color: var(--atms-blue);
+      transform: scale(1.05);
+    }
+
+    .sidebar-hide-btn i {
+      font-size: 16px;
+      transition: transform 0.3s ease;
+    }
+
+    /* Sidebar Unhide Button (in main content area) */
+    .sidebar-unhide-btn {
+      background-color: var(--atms-blue);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 10px 16px;
+      display: none;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      font-weight: 500;
+      transition: all 0.2s ease;
+      margin-right: 10px;
+    }
+
+    .sidebar-unhide-btn:hover {
+      background-color: #0056b3;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 8px rgba(0,123,255,0.3);
+    }
+
+    .sidebar-unhide-btn i {
+      font-size: 16px;
+    }
+
+    .sidebar-unhide-btn.visible {
+      display: flex !important;
+    }
+
+    /* Main content adjustment when sidebar is hidden */
+    .main-content.sidebar-hidden {
+      margin-left: 0;
+    }
+
     .sidebar::-webkit-scrollbar { width: 6px; }
     .sidebar::-webkit-scrollbar-track { background: transparent; }
     .sidebar::-webkit-scrollbar-thumb { background: #cbd5e0; border-radius: 3px; }
@@ -72,12 +143,6 @@
       letter-spacing: -0.5px;
       display: flex;
       align-items: center;
-    }
-    .sidebar.hidden {
-        transform: translateX(-100%);
-    }
-    #toggleSidebarBtn {
-        transition: all 0.3s ease;
     }
     .logo-image {
       height: 1em;
@@ -286,7 +351,7 @@
       margin-top: -4px;
     }
 
-    /* Teams Accordion (Updated & Enhanced) */
+    /* Teams Accordion */
     .accordion-item {
       border: none;
       background: transparent;
@@ -564,15 +629,19 @@
 
 </head>
 <body>
+
 <div class="main-container">
 <!-- Sidebar -->
-<div class="sidebar">
+<div class="sidebar" id="sidebar">
+    <!-- Hide Button inside Sidebar -->
+    <button class="sidebar-hide-btn" id="sidebarHideBtn" onclick="hideSidebar()" title="Hide Sidebar">
+      <i class="fas fa-chevron-left"></i>
+    </button>
+
     <div class="sidebar-logo">
         <img src="{% static 'accounts/images/group-481747-1-19.png' %}" alt="Students Logo" class="logo-image">
         AT<span>MS</span>
     </div>
-
-
 
     <div class="sidebar-menu">
         {% if request.user.role == 'hod' %}
@@ -596,18 +665,6 @@
         {% endif %}
 
     </div>
-
-    <!-- <div class="sidebar-menu">
-        {% if request.user.role == 'hod' %}
-            <a href="{% url 'accounts:hod_dashboard' %}" class="{% if request.resolver_match.url_name == 'hod_dashboard' %}active{% endif %}">
-                <i class="fas fa-home"></i> Summary
-            </a>
-        {% else %}
-            <a href="{% url 'accounts:staff_dashboard' %}" class="{% if request.resolver_match.url_name == 'staff_dashboard' %}active{% endif %}">
-                <i class="fas fa-home"></i> Summary
-            </a>
-        {% endif %}
-    </div> -->
 
     <hr class="sidebar-divider">
 
@@ -669,7 +726,6 @@
                     </div>
                     {% endif %}
 
-                    <!-- Chevron should ALWAYS be visible -->
                     <button class="project-toggle" type="button" data-bs-toggle="collapse"
                             data-bs-target="#projectDesc{{ project.id }}" aria-expanded="false">
                         <i class="fas fa-chevron-down"></i>
@@ -720,9 +776,7 @@
                     <i class="fas fa-users me-2"></i> {{ team.name }}
                 </button>
 
-                <!-- Team Actions (Dropdown + Toggle) - Side by Side -->
                 <div style="position: absolute; right: 8px; top: 8px; z-index: 10; display: flex; align-items: center; gap: 2px;">
-                    <!-- Dropdown for team edit/delete -->
                     {% if request.user.role != 'coordinator' %}
                     <div class="dropdown d-inline-block">
                         <button class="team-dropdown-btn" type="button" id="teamDropdown{{ team.id }}" data-bs-toggle="dropdown" aria-expanded="false" onclick="event.stopPropagation();">
@@ -784,13 +838,16 @@
 
 
   <!-- Main content -->
-  <div class="main-content">
+  <div class="main-content" id="mainContent">
     <div class="top-navbar mb-4">
-      <button id="toggleSidebarBtn" class="btn btn-outline-secondary me-3">
-          <i class="fas fa-chevron-left"></i>
-      </button>
+
 
       <div class="d-flex align-items-center flex-wrap">
+        <!-- Unhide Sidebar Button (shown when sidebar is hidden) -->
+        <button class="sidebar-unhide-btn" id="sidebarUnhideBtn" onclick="showSidebar()">
+          <i class="fas fa-arrow-right"></i> 
+        </button>
+
         {% if request.user.role != 'student' and request.user.role != 'coordinator' %}
         
         <button class="btn create-task-btn" data-bs-toggle="modal" data-bs-target="#createTaskModal">
@@ -1143,8 +1200,36 @@ const allUsersData = [
     {% endfor %}
 ];
 
+// ========== SIDEBAR TOGGLE FUNCTIONALITY ==========
+function hideSidebar() {
+    const sidebar = document.getElementById('sidebar');
+    const mainContent = document.getElementById('mainContent');
+    const unhideBtn = document.getElementById('sidebarUnhideBtn');
+    
+    sidebar.classList.add('hidden');
+    mainContent.classList.add('sidebar-hidden');
+    unhideBtn.classList.add('visible');
+    
+    // Save state to localStorage
+    localStorage.setItem('sidebarHidden', 'true');
+}
+
+function showSidebar() {
+    const sidebar = document.getElementById('sidebar');
+    const mainContent = document.getElementById('mainContent');
+    const unhideBtn = document.getElementById('sidebarUnhideBtn');
+    
+    sidebar.classList.remove('hidden');
+    mainContent.classList.remove('sidebar-hidden');
+    unhideBtn.classList.remove('visible');
+    
+    // Save state to localStorage
+    localStorage.setItem('sidebarHidden', 'false');
+}
+
 // ========== PROJECT MODAL FUNCTIONS ==========
 function resetProjectModal() {
+    keywordEditedManually = false;
     const form = document.getElementById('projectForm');
     form.action = "{% url 'accounts:create_project' %}";
     form.reset();
@@ -1159,21 +1244,17 @@ function openEditProjectModal(projectId, projectName, projectDescription, keywor
     const form = document.getElementById('projectForm');
     const modal = new bootstrap.Modal(document.getElementById('createProjectModal'));
 
-    // Change form action to edit URL
     form.action = `/accounts/edit_project/${projectId}/`;
 
-    // Update modal title and button
     document.getElementById('projectModalTitleText').textContent = 'Edit Project/Event';
     document.getElementById('projectSubmitBtnText').textContent = 'Update Project/Event';
 
-    // Fill in the form fields
     document.getElementById('projectName').value = projectName;
     document.getElementById('projectDescription').value = projectDescription;
     document.getElementById('projectKeyword').value = keyword || '';
     document.getElementById('projectStartDate').value = startDate || '';
     document.getElementById('projectEndDate').value = endDate || '';
 
-    // Show the modal
     modal.show();
 }
 
@@ -1198,12 +1279,12 @@ function resetTeamModal() {
     document.getElementById('teamModalTitleText').textContent = 'Create New Team';
     document.getElementById('teamSubmitBtnText').textContent = 'Create Team';
     
-    // Re-enable all options
     const membersSelect = document.getElementById('teamMembers');
     Array.from(membersSelect.options).forEach(option => {
         option.disabled = false;
     });
 }
+
 function openEditTeamModal(teamId, teamName, projectId, headId, memberIds) {
     const form = document.getElementById('teamForm');
     const modal = new bootstrap.Modal(document.getElementById('createTeamModal'));
@@ -1213,11 +1294,9 @@ function openEditTeamModal(teamId, teamName, projectId, headId, memberIds) {
     document.getElementById('teamModalTitleText').textContent = 'Edit Team';
     document.getElementById('teamSubmitBtnText').textContent = 'Update Team';
 
-    // ⭐ ALWAYS get uppercase keyword
     let rawKeyword = projectKeywords[projectId] || "";
     let keyword = rawKeyword.toUpperCase().trim();
 
-    // ⭐ Normalize possible prefix variations
     let possiblePrefixes = [
         keyword + "-",
         keyword + " - ",
@@ -1232,10 +1311,8 @@ function openEditTeamModal(teamId, teamName, projectId, headId, memberIds) {
         }
     });
 
-    // ⭐ Clean and set name
     document.getElementById('teamName').value = cleanedName.trim();
 
-    // Continue filling modal
     document.getElementById('teamProject').value = projectId || '';
     document.getElementById('teamHead').value = headId;
 
@@ -1248,9 +1325,20 @@ function openEditTeamModal(teamId, teamName, projectId, headId, memberIds) {
     modal.show();
 }
 
-
-
 document.addEventListener('DOMContentLoaded', function() {
+    // Restore sidebar state on page load
+    const sidebarHidden = localStorage.getItem('sidebarHidden') === 'true';
+    
+    if (sidebarHidden) {
+        const sidebar = document.getElementById('sidebar');
+        const mainContent = document.getElementById('mainContent');
+        const unhideBtn = document.getElementById('sidebarUnhideBtn');
+        
+        sidebar.classList.add('hidden');
+        mainContent.classList.add('sidebar-hidden');
+        unhideBtn.classList.add('visible');
+    }
+
     // ========== CREATE TEAM MODAL ==========
     const headSelect = document.getElementById('teamHead');
     const membersSelect = document.getElementById('teamMembers');
@@ -1312,13 +1400,13 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 });
+
 // ========== TASK MODAL - UPDATE TEAM DROPDOWN BASED ON PROJECT ==========
 function updateTeamDropdown() {
     const projectId = document.getElementById('project').value;
     const teamDropdown = document.getElementById('assignedTeam');
     const userDropdown = document.getElementById('assignedTo');
     
-    // Reset dropdowns
     teamDropdown.innerHTML = '<option value="">Select Team</option>';
     userDropdown.innerHTML = '<option value="">Select team first</option>';
     userDropdown.disabled = true;
@@ -1329,10 +1417,8 @@ function updateTeamDropdown() {
         return;
     }
     
-    // Enable team dropdown
     teamDropdown.disabled = false;
     
-    // Get teams for selected project
     const teams = projectTeamsData[projectId] || [];
     
     if (teams.length === 0) {
@@ -1341,7 +1427,6 @@ function updateTeamDropdown() {
         return;
     }
     
-    // Populate team dropdown with teams from selected project
     teams.forEach(team => {
         const option = document.createElement('option');
         option.value = team.id;
@@ -1357,7 +1442,6 @@ function updateUserDropdown() {
     const userDropdown = document.getElementById('assignedTo');
     const selectedOption = teamDropdown.options[teamDropdown.selectedIndex];
 
-    // Reset user dropdown
     userDropdown.innerHTML = '<option value="">Select User</option>';
 
     if (!teamDropdown.value) {
@@ -1368,13 +1452,9 @@ function updateUserDropdown() {
 
     userDropdown.disabled = false;
 
-    // Get team members
     const teamMemberIds = JSON.parse(selectedOption.getAttribute('data-team-members') || '[]');
-
-    // Avoid duplicate users
     const uniqueMembers = [...new Set(teamMemberIds)];
 
-    // Find selected team in projectTeamsData
     const projectId = document.getElementById('project').value;
     const selectedTeamId = parseInt(teamDropdown.value);
     const selectedTeam = (projectTeamsData[projectId] || []).find(t => t.id === selectedTeamId);
@@ -1386,7 +1466,6 @@ function updateUserDropdown() {
             const option = document.createElement('option');
             option.value = user.id;
 
-            // Label team head separately
             if (selectedTeam && memberId === selectedTeam.headId) {
                 option.textContent = user.email + " (Team Head)";
             } else {
@@ -1397,20 +1476,19 @@ function updateUserDropdown() {
         }
     });
 }
+
 // Auto-generate Project Keyword based on Project Name
 const projectNameInput = document.getElementById('projectName');
 const projectKeywordInput = document.getElementById('projectKeyword');
 
 let keywordEditedManually = false;
 
-// Detect manual edits
 projectKeywordInput.addEventListener('input', () => {
     keywordEditedManually = true;
 });
 
-// Auto-fill keyword when name is typed
 projectNameInput.addEventListener('input', () => {
-    if (keywordEditedManually) return;  // user manually changed keyword → do not override
+    if (keywordEditedManually) return;
 
     const name = projectNameInput.value.trim();
 
@@ -1424,46 +1502,13 @@ projectNameInput.addEventListener('input', () => {
     const words = name.split(" ").filter(w => w.length > 0);
 
     if (words.length > 1) {
-        // Multi-word → take first letter of each
         keyword = words.map(w => w[0].toUpperCase()).join("");
     } else {
-        // Single word → take first 3 letters
         keyword = name.substring(0, 3).toUpperCase();
     }
 
     projectKeywordInput.value = keyword;
 });
-
-// Reset keyword manual flag when opening create modal
-function resetProjectModal() {
-    keywordEditedManually = false;
-    const form = document.getElementById('projectForm');
-    form.action = "{% url 'accounts:create_project' %}";
-    form.reset();
-    document.getElementById('projectModalTitleText').textContent = 'Create New Project/Event';
-    document.getElementById('projectSubmitBtnText').textContent = 'Create Project/Event';
-    document.getElementById('projectKeyword').value = '';
-    document.getElementById('projectStartDate').value = '';
-    document.getElementById('projectEndDate').value = '';
-}
-// Sidebar Hide/Show
-document.addEventListener("DOMContentLoaded", function () {
-    const sidebar = document.querySelector(".sidebar");
-    const toggleBtn = document.getElementById("toggleSidebarBtn");
-
-    toggleBtn.addEventListener("click", function () {
-        sidebar.classList.toggle("hidden");
-
-        // Change Icon Based on State
-        if (sidebar.classList.contains("hidden")) {
-            toggleBtn.innerHTML = '<i class="fas fa-chevron-right"></i>';
-        } else {
-            toggleBtn.innerHTML = '<i class="fas fa-chevron-left"></i>';
-        }
-    });
-});
-
-
 </script>
 </body>
 </html>

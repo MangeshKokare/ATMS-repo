@@ -3,7 +3,6 @@
 {% load humanize %}
 {% load time_extras %}
 
-
 {% block title %}Summary{% endblock %}
 
 {% block content %}
@@ -317,21 +316,109 @@
         align-items: center;
     }
 
-    .filter-select {
-        padding: 10px 16px;
+    /* Custom Dropdown Wrapper */
+    .custom-dropdown-wrapper {
+        position: relative;
+        min-width: 200px;
+    }
+
+    .custom-dropdown-trigger {
+        width: 100%;
+        padding: 10px 40px 10px 16px;
         border: 2px solid #e9ecef;
         border-radius: 8px;
         font-size: 14px;
         background: white;
         cursor: pointer;
         transition: all 0.3s;
-        min-width: 150px;
+        text-align: left;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
     }
 
-    .filter-select:focus {
-        outline: none;
+    .custom-dropdown-trigger:hover {
+        border-color: var(--jira-blue);
+    }
+
+    .custom-dropdown-trigger.active {
         border-color: var(--jira-blue);
         box-shadow: 0 0 0 3px rgba(0, 82, 204, 0.1);
+    }
+
+    .custom-dropdown-trigger i {
+        color: var(--jira-gray-700);
+        transition: transform 0.3s;
+    }
+
+    .custom-dropdown-trigger.open i {
+        transform: rotate(180deg);
+    }
+
+    .custom-dropdown-menu {
+        position: absolute;
+        top: calc(100% + 4px);
+        left: 0;
+        right: 0;
+        background: white;
+        border: 2px solid var(--jira-blue);
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        z-index: 1000;
+        max-height: 300px;
+        overflow-y: auto;
+        display: none;
+    }
+
+    .custom-dropdown-menu.show {
+        display: block;
+    }
+
+    .custom-dropdown-search {
+        position: sticky;
+        top: 0;
+        background: white;
+        padding: 8px;
+        border-bottom: 1px solid #e9ecef;
+    }
+
+    .custom-dropdown-search input {
+        width: 100%;
+        padding: 8px 12px;
+        border: 1px solid #e9ecef;
+        border-radius: 6px;
+        font-size: 14px;
+    }
+
+    .custom-dropdown-search input:focus {
+        outline: none;
+        border-color: var(--jira-blue);
+    }
+
+    .custom-dropdown-options {
+        padding: 4px 0;
+    }
+
+    .custom-dropdown-option {
+        padding: 10px 16px;
+        cursor: pointer;
+        transition: background 0.2s;
+        font-size: 14px;
+    }
+
+    .custom-dropdown-option:hover {
+        background: var(--jira-blue-light);
+    }
+
+    .custom-dropdown-option.selected {
+        background: var(--jira-blue-light);
+        font-weight: 500;
+        color: var(--jira-blue);
+    }
+
+    .filter-active {
+        border-color: var(--jira-blue) !important;
+        background: var(--jira-blue-light) !important;
     }
 
     .clear-filters-btn {
@@ -391,9 +478,29 @@
     .kanban-fullscreen .kanban-toolbar {
         position: sticky;
         top: 0;
-        z-index: 10;
+        z-index: 100;
         background: white;
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        margin-bottom: 20px;
+    }
+
+    .kanban-fullscreen .card-body > h5:first-child {
+        font-size: 1.5rem;
+        margin-bottom: 20px;
+        padding-bottom: 10px;
+        border-bottom: 2px solid var(--jira-gray-200);
+    }
+
+    .kanban-fullscreen .kanban-column-header {
+        font-size: 1.1rem;
+        min-height: 60px;
+        height: 60px;
+        padding: 18px 16px;
+    }
+
+    .kanban-fullscreen .task-card {
+        margin-bottom: 20px;
+        font-size: 0.95rem;
     }
 
     .exit-fullscreen-btn {
@@ -421,17 +528,16 @@
         display: none !important;
     }
 
-    /* Filter Active Indicator */
-    .filter-active {
-        border-color: var(--jira-blue) !important;
-        background: var(--jira-blue-light) !important;
-    }
-
     /* No tasks message styling */
     .no-tasks-msg {
         padding: 20px;
         text-align: center;
         font-style: italic;
+    }
+
+    /* Hide original select */
+    .filter-select {
+        display: none;
     }
 </style>
 
@@ -606,6 +712,24 @@
                     </p>
                     {% endif %}
 
+                    <!-- Hidden Select Elements for Data -->
+                    <select class="filter-select" id="filter-team" style="display: none;">
+                        <option value="">All Teams</option>
+                        {% for team in teams %}
+                            <option value="{{ team.id }}">{{ team.name }}</option>
+                        {% endfor %}
+                    </select>
+
+                    <select class="filter-select" id="filter-user" style="display: none;">
+                        <option value="">All Users</option>
+                        {% for user in staff_and_students %}
+                            <option value="{{ user.id }}"
+                                    data-team-ids="{% for team in user.teams.all %}{{ team.id }}{% if not forloop.last %},{% endif %}{% endfor %}"
+                                    data-email="{{ user.email|lower }}">
+                                {{ user.email }}
+                            </option>
+                        {% endfor %}
+                    </select>
 
                     <!-- Search and Filter Toolbar -->
                     <div class="kanban-toolbar">
@@ -615,33 +739,37 @@
                             <i class="fas fa-search"></i>
                         </div>
 
-                        <!-- Filter by Team -->
+                        <!-- Custom Team Filter with Search -->
                         <div class="filter-group">
-                            <select class="filter-select" id="filter-team">
-                                <option value="">All Teams</option>
-                                {% for team in teams %}
-                                    <option value="{{ team.id }}">{{ team.name }}</option>
-                                {% endfor %}
-                            </select>
+                            <div class="custom-dropdown-wrapper" id="team-dropdown-wrapper">
+                                <div class="custom-dropdown-trigger" id="team-dropdown-trigger">
+                                    <span id="team-selected-text">All Teams</span>
+                                    <i class="fas fa-chevron-down"></i>
+                                </div>
+                                <div class="custom-dropdown-menu" id="team-dropdown-menu">
+                                    <div class="custom-dropdown-search">
+                                        <input type="text" id="team-search-input" placeholder="Search teams...">
+                                    </div>
+                                    <div class="custom-dropdown-options" id="team-options"></div>
+                                </div>
+                            </div>
                         </div>
 
-
-                        <!-- Filter by User -->
+                        <!-- Custom User Filter with Search -->
                         <div class="filter-group">
-                            <select class="filter-select" id="filter-user">
-                                <option value="">All Users</option>
-                                {% for user in staff_and_students %}
-                                    <option value="{{ user.id }}"
-                                            data-team-ids="{% for team in user.teams.all %}{{ team.id }}{% if not forloop.last %},{% endif %}{% endfor %}">
-                                        {{ user.email }}
-                                    </option>
-
-
-                                {% endfor %}
-                            </select>
+                            <div class="custom-dropdown-wrapper" id="user-dropdown-wrapper">
+                                <div class="custom-dropdown-trigger" id="user-dropdown-trigger">
+                                    <span id="user-selected-text">All Users</span>
+                                    <i class="fas fa-chevron-down"></i>
+                                </div>
+                                <div class="custom-dropdown-menu" id="user-dropdown-menu">
+                                    <div class="custom-dropdown-search">
+                                        <input type="text" id="user-search-input" placeholder="Search users...">
+                                    </div>
+                                    <div class="custom-dropdown-options" id="user-options"></div>
+                                </div>
+                            </div>
                         </div>
-
-
 
                         <!-- Clear Filters -->
                         <button class="clear-filters-btn" id="clear-filters">
@@ -830,6 +958,7 @@
                             {% endfor %}
                             </div>
                         </div>
+                        
                         <!-- In Progress Column -->
                         <div class="col-md-4">
                             <div class="kanban-column-header progress">
@@ -849,10 +978,8 @@
                                     data-accumulated-time="{{ task.accumulated_time|default:0 }}"
                                     data-is-paused="{{ task.is_paused|default:'false' }}"
                                     data-pause-time="{{ task.pause_time|date:'c'|default:'' }}">
-
                                     
                                     {% if request.user.role == 'staff' %}
-                                    <!-- Badge for staff users -->
                                     <div class="mb-2">
                                         {% if task.assigned_to == request.user %}
                                             <span class="badge bg-primary">My Task</span>
@@ -871,10 +998,8 @@
                                         {% if not task.team and not task.assigned_to %}Unassigned{% endif %}
                                     </p>
 
-                                    <!-- Task Timer Display -->
                                     <div class="text-center my-2">
                                         {% if request.user.role == 'staff' and task.assigned_to != request.user %}
-                                            <!-- Static timer for staff viewing created tasks -->
                                             <div class="task-timer-badge">
                                                 <i class="fas fa-clock me-1"></i>
                                                 <span>
@@ -886,7 +1011,6 @@
                                                 </span>
                                             </div>
                                         {% else %}
-                                            <!-- Live timer for own tasks -->
                                             <div class="task-timer-badge {% if task.is_paused %}paused{% endif %}" id="task-timer-{{ task.id }}">
                                                 <i class="fas fa-clock me-1"></i>
                                                 <span id="task-time-{{ task.id }}">0h 0m 0s</span>
@@ -894,7 +1018,6 @@
                                         {% endif %}
                                     </div>
 
-                                    <!-- Subtasks -->
                                     {% if task.subtasks.all %}
                                         <div class="mt-3 mb-2">
                                             <small class="text-muted fw-bold">Subtasks:</small>
@@ -918,7 +1041,6 @@
                                                     </div>
                                                     
                                                     {% if request.user.role == 'staff' and task.assigned_to != request.user %}
-                                                        <!-- No buttons for staff viewing created tasks -->
                                                     {% else %}
                                                         <div>
                                                             {% if not is_read_only %}
@@ -944,7 +1066,6 @@
                                     <div class="task-actions">
                                         {% if request.user.role == 'staff' %}
                                             {% if task.assigned_to == request.user %}
-                                                <!-- User can edit their own tasks -->
                                                 {% if not is_read_only %}
                                                     <button type="button" class="task-action-btn btn-pause-task" id="pause-btn-{{ task.id }}" onclick="pauseTask({{ task.id }})" {% if task.is_paused %}style="display: none;"{% endif %}>
                                                         <i class="fas fa-pause"></i>
@@ -971,13 +1092,11 @@
                                                     </button>
                                                 {% endif %}
                                             {% else %}
-                                                <!-- View-only for created tasks -->
                                                 <div class="alert alert-info small mb-0 text-center py-2">
                                                     <i class="fas fa-eye me-1"></i>View Only
                                                 </div>
                                             {% endif %}
                                         {% else %}
-                                            <!-- Original logic for non-staff users -->
                                             {% if not is_read_only %}
                                                 <button type="button" class="task-action-btn btn-pause-task" id="pause-btn-{{ task.id }}" onclick="pauseTask({{ task.id }})" {% if task.is_paused %}style="display: none;"{% endif %}>
                                                     <i class="fas fa-pause"></i>
@@ -1019,6 +1138,7 @@
                             {% endfor %}
                             </div>
                         </div>
+                        
                         <!-- Done Column -->
                         <div class="col-md-4">
                             <div class="kanban-column-header done">
@@ -1129,6 +1249,178 @@
 const taskTimers = {};
 const subtaskTimers = {};
 
+// Custom Dropdown Class
+class CustomDropdown {
+    constructor(wrapperId, selectId, placeholderText) {
+        this.wrapper = document.getElementById(wrapperId);
+        this.trigger = this.wrapper.querySelector('.custom-dropdown-trigger');
+        this.menu = this.wrapper.querySelector('.custom-dropdown-menu');
+        // FIX: match existing HTML IDs (team-selected-text, user-selected-text)
+        if (wrapperId === "team-dropdown-wrapper") {
+            this.selectedText = document.getElementById("team-selected-text");
+        } else if (wrapperId === "user-dropdown-wrapper") {
+            this.selectedText = document.getElementById("user-selected-text");
+        } else {
+            this.selectedText = null;
+        }
+
+        this.searchInput = this.wrapper.querySelector('.custom-dropdown-search input');
+        this.optionsContainer = this.wrapper.querySelector('.custom-dropdown-options');
+        this.select = document.getElementById(selectId);
+        this.placeholderText = placeholderText;
+        this.selectedValue = '';
+        
+        this.init();
+    }
+    
+    init() {
+        // Populate options from select element
+        this.populateOptions();
+        
+        // Toggle dropdown
+        this.trigger.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.toggle();
+        });
+        
+        // Search functionality
+        this.searchInput.addEventListener('input', () => {
+            this.filterOptions(this.searchInput.value);
+        });
+        
+        // Close on outside click
+        document.addEventListener('click', (e) => {
+            if (!this.wrapper.contains(e.target)) {
+                this.close();
+            }
+        });
+        
+        // Prevent menu close when clicking inside
+        this.menu.addEventListener('click', (e) => {
+            e.stopPropagation();
+        });
+    }
+    
+    populateOptions(filterTeamId = null) {
+        this.optionsContainer.innerHTML = '';
+        const options = Array.from(this.select.options);
+        
+        options.forEach((option, index) => {
+            if (index === 0) {
+                // "All" option
+                const optionEl = document.createElement('div');
+                optionEl.className = 'custom-dropdown-option';
+                if (this.selectedValue === '') optionEl.classList.add('selected');
+                optionEl.textContent = option.textContent;
+                optionEl.dataset.value = '';
+                optionEl.addEventListener('click', () => this.selectOption('', option.textContent));
+                this.optionsContainer.appendChild(optionEl);
+            } else {
+                // Filter users by team if filterTeamId is provided
+                if (filterTeamId && option.dataset.teamIds) {
+                    const teamIds = option.dataset.teamIds.split(',').filter(x => x);
+                    if (!teamIds.includes(filterTeamId)) return;
+                }
+                
+                const optionEl = document.createElement('div');
+                optionEl.className = 'custom-dropdown-option';
+                if (String(this.selectedValue) === String(option.value)) {
+                    optionEl.classList.add('selected');
+                }
+
+                optionEl.textContent = option.textContent;
+                optionEl.dataset.value = option.value;
+                
+                // Copy data attributes for user options
+                if (option.dataset.teamIds) optionEl.dataset.teamIds = option.dataset.teamIds;
+                if (option.dataset.email) optionEl.dataset.email = option.dataset.email;
+                
+                optionEl.addEventListener('click', () => this.selectOption(option.value, option.textContent));
+                this.optionsContainer.appendChild(optionEl);
+            }
+        });
+    }
+    
+    filterOptions(searchTerm) {
+        const term = searchTerm.toLowerCase();
+        const options = this.optionsContainer.querySelectorAll('.custom-dropdown-option');
+        
+        options.forEach(option => {
+            const text = option.textContent.toLowerCase();
+            if (text.includes(term)) {
+                option.style.display = '';
+            } else {
+                option.style.display = 'none';
+            }
+        });
+    }
+    
+    selectOption(value, text) {
+        this.selectedValue = value;
+        this.selectedText.textContent = text;
+        // Ensure hidden select receives correct value
+        this.select.value = value || "";
+
+        // Update selected state
+        this.optionsContainer.querySelectorAll('.custom-dropdown-option').forEach(opt => {
+            opt.classList.remove('selected');
+            if (opt.dataset.value === value) {
+                opt.classList.add('selected');
+            }
+        });
+        
+        // Update trigger styling
+        if (value) {
+            this.trigger.classList.add('filter-active');
+        } else {
+            this.trigger.classList.remove('filter-active');
+        }
+        
+        // Trigger change event
+        this.select.dispatchEvent(new Event('change', { bubbles: true }));
+
+        
+        this.close();
+    }
+    
+    toggle() {
+        if (this.menu.classList.contains('show')) {
+            this.close();
+        } else {
+            this.open();
+        }
+    }
+    
+    open() {
+        // Close other dropdowns
+        document.querySelectorAll('.custom-dropdown-menu.show').forEach(menu => {
+            menu.classList.remove('show');
+        });
+        document.querySelectorAll('.custom-dropdown-trigger.open').forEach(trigger => {
+            trigger.classList.remove('open');
+        });
+        
+        this.menu.classList.add('show');
+        this.trigger.classList.add('open');
+        this.searchInput.value = '';
+        this.filterOptions('');
+        this.searchInput.focus();
+    }
+    
+    close() {
+        this.menu.classList.remove('show');
+        this.trigger.classList.remove('open');
+    }
+    
+    reset() {
+        this.selectOption('', this.placeholderText);
+        this.searchInput.value = '';
+    }
+}
+
+// Initialize custom dropdowns
+let teamDropdown, userDropdown;
+
 // Start a task
 function startTask(taskId) {
     fetch("{% url 'accounts:start_task_timer' %}", {
@@ -1225,6 +1517,9 @@ function startTimerInterval(taskId){
 }
 
 window.addEventListener('load', ()=>{
+    // Initialize custom dropdowns
+    teamDropdown = new CustomDropdown('team-dropdown-wrapper', 'filter-team', 'All Teams');
+    userDropdown = new CustomDropdown('user-dropdown-wrapper', 'filter-user', 'All Users');
 
     document.querySelectorAll('.progress-card').forEach(card=>{
         const taskId = card.dataset.taskId;
@@ -1323,60 +1618,24 @@ function initializeSearchAndFilter() {
     teamFilter.addEventListener('change', function() {
         const selectedTeamId = this.value;
         
-        // Update user filter options based on selected team
-        userFilter.innerHTML = '<option value="">All Users</option>';
-        
-        allUserOptions.forEach(option => {
-            if (option.value === '') return; // Skip "All Users" option
-            
-            // Get comma-separated team IDs as array
-            const teamIds = (option.dataset.teamIds || "").split(",").filter(x => x);
-
-            // Check if selected team is in the list
-            if (!selectedTeamId || teamIds.includes(selectedTeamId)) {
-                userFilter.appendChild(option.cloneNode(true));
-            }
-
-        });
-
-        // Reset user filter selection
-        userFilter.value = '';
-        
-        // Apply visual indicator
-        if (selectedTeamId) {
-            teamFilter.classList.add('filter-active');
-        } else {
-            teamFilter.classList.remove('filter-active');
-        }
+        // Update user dropdown options based on selected team
+        userDropdown.populateOptions(selectedTeamId || null);
+        userDropdown.reset();
         
         filterTasks();
     });
 
     // User filter change
     userFilter.addEventListener('change', function() {
-        if (this.value) {
-            userFilter.classList.add('filter-active');
-        } else {
-            userFilter.classList.remove('filter-active');
-        }
         filterTasks();
     });
 
     // Clear filters
     clearBtn.addEventListener('click', function() {
         searchInput.value = '';
-        teamFilter.value = '';
-        userFilter.value = '';
-        teamFilter.classList.remove('filter-active');
-        userFilter.classList.remove('filter-active');
-        
-        // Reset user options to show all
-        userFilter.innerHTML = '<option value="">All Users</option>';
-        allUserOptions.forEach(option => {
-            if (option.value !== '') {
-                userFilter.appendChild(option.cloneNode(true));
-            }
-        });
+        teamDropdown.reset();
+        userDropdown.populateOptions(null);
+        userDropdown.reset();
         
         filterTasks();
     });
@@ -1403,6 +1662,7 @@ function filterTasks() {
             const matchesSearch = !searchTerm || 
                                 title.includes(searchTerm) || 
                                 description.includes(searchTerm);
+
 
             // Check team filter
             const matchesTeam = !selectedTeam || taskTeams.includes(selectedTeam);
