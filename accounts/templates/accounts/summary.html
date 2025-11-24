@@ -687,7 +687,7 @@
 
                     <!-- Status Badges -->
                     <div class="mt-3 text-center d-flex justify-content-center gap-3 flex-wrap">
-                        <span class="badge bg-secondary">To Do: {{ todo_count|default:0 }}</span>
+                        <span class="badge bg-secondary">Yet to Start: {{ todo_count|default:0 }}</span>
                         <span class="badge bg-primary">In Progress: {{ in_progress_count|default:0 }}</span>
                         <span class="badge bg-warning text-dark">In Review: {{ in_review_count|default:0 }}</span>
                         <span class="badge bg-success">Done: {{ done_count|default:0 }}</span>
@@ -1377,7 +1377,10 @@ class CustomDropdown {
         }
         
         // Trigger change event
-        this.select.dispatchEvent(new Event('change', { bubbles: true }));
+        setTimeout(() => {
+            this.select.dispatchEvent(new Event('change', { bubbles: true }));
+        }, 10);
+
 
         
         this.close();
@@ -1413,9 +1416,21 @@ class CustomDropdown {
     }
     
     reset() {
-        this.selectOption('', this.placeholderText);
+        this.selectedValue = '';
+        this.selectedText.textContent = this.placeholderText;
+
+        this.select.value = "";
+
+        // Clear search box
         this.searchInput.value = '';
+
+        // Remove UI highlight
+        this.trigger.classList.remove('filter-active');
+
+        // Make sure options are visible again
+        this.filterOptions('');
     }
+
 }
 
 // Initialize custom dropdowns
@@ -1569,15 +1584,30 @@ function stopSubtaskTimer(subtaskId){
         body:`subtask_id=${subtaskId}&time_spent=${seconds}`
     });
 }
+function formatDuration(totalSeconds) {
+    const days = Math.floor(totalSeconds / 86400); // 24 * 3600
+    const hours = Math.floor((totalSeconds % 86400) / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
 
-function formatDuration(totalSeconds){
-    const h=Math.floor(totalSeconds/3600);
-    const m=Math.floor((totalSeconds%3600)/60);
-    const s=totalSeconds%60;
-    if(h>0) return `${h}h ${m}m ${s}s`;
-    if(m>0) return `${m}m ${s}s`;
-    return `${s}s`;
+    // If more than or equal to 24 hours → show days also
+    if (days > 0) {
+        return `${days}d ${hours}h ${minutes}m ${seconds}s`;
+    }
+
+    // If less than 24 hours, show normal format
+    if (hours > 0) {
+        return `${hours}h ${minutes}m ${seconds}s`;
+    }
+
+    if (minutes > 0) {
+        return `${minutes}m ${seconds}s`;
+    }
+
+    return `${seconds}s`;
 }
+
+
 
 function parseDurationToSeconds(str){
     let t=0;
@@ -1615,15 +1645,23 @@ function initializeSearchAndFilter() {
     searchInput.addEventListener('input', filterTasks);
 
     // Team filter change
-    teamFilter.addEventListener('change', function() {
+    teamFilter.addEventListener('change', function () {
         const selectedTeamId = this.value;
-        
-        // Update user dropdown options based on selected team
-        userDropdown.populateOptions(selectedTeamId || null);
+
+        if (selectedTeamId) {
+            // Populate only users in that team
+            userDropdown.populateOptions(selectedTeamId);
+        } else {
+            // No team selected → show all users
+            userDropdown.populateOptions(null);
+        }
+
+        // Reset the displayed selected user text
         userDropdown.reset();
-        
+
         filterTasks();
     });
+
 
     // User filter change
     userFilter.addEventListener('change', function() {
