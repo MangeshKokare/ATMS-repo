@@ -60,6 +60,7 @@ admin.site.register(CustomUser, CustomUserAdmin)
 
 
 from .models import Project
+
 @admin.register(Project)
 class ProjectAdmin(admin.ModelAdmin):
     list_display = (
@@ -69,7 +70,8 @@ class ProjectAdmin(admin.ModelAdmin):
         'start_date',
         'end_date',
         'get_departments',
-        'status',            # uses @property
+        'get_schools',        # ⭐ Added
+        'status',
     )
 
     list_filter = (
@@ -77,12 +79,13 @@ class ProjectAdmin(admin.ModelAdmin):
         'start_date',
         'end_date',
         'department',        # M2M filter
+        'department__school',   # ⭐ Filter by schools too
     )
 
     search_fields = (
         'name',
         'description',
-        'keyword',
+        'keyword',   # ❌ remove if keyword no longer exists
         'created_by__username',
         'created_by__first_name',
         'created_by__last_name',
@@ -90,9 +93,21 @@ class ProjectAdmin(admin.ModelAdmin):
 
     filter_horizontal = ('department',)
 
+    # ----------------------
+    # Departments Column
+    # ----------------------
     def get_departments(self, obj):
         return ", ".join([dept.name for dept in obj.department.all()])
     get_departments.short_description = "Departments"
+
+    # ----------------------
+    # ⭐ Schools Column
+    # ----------------------
+    def get_schools(self, obj):
+        schools = obj.department.values_list("school__name", flat=True).distinct()
+        return ", ".join(schools)
+    get_schools.short_description = "Schools"
+
 
 @admin.register(Team)
 class TeamAdmin(admin.ModelAdmin):

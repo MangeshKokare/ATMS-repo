@@ -149,6 +149,8 @@ User = get_user_model()
 class Project(models.Model):
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True, null=True)
+    keyword = models.CharField(max_length=255, blank=True, null=True)
+
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,

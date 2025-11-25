@@ -787,20 +787,16 @@
 
                     <div class="row" id="kanban-columns">
                     <hr>
-                        <!-- To Do Column -->
+<!-- To Do Column -->
                         <div class="col-md-4">
                             <div class="kanban-column-header todo">
                                 <i class="fas fa-list"></i>
                                 <span>Yet to Start</span>
                             </div>
-                            <div class="kanban-column-content" data-status="to_do">
                             {% for task in kanban_tasks.to_do %}
-                                <div class="card mb-3 p-3 task-card todo-card" 
-                                     data-task-title="{{ task.title|lower }}" 
-                                     data-task-description="{{ task.description|lower }}"
-                                     data-task-team-ids="{{ task.team.id|default:'' }}"
-                                     data-task-user="{{ task.assigned_to.id|default:'' }}">
+                                <div class="card mb-3 p-3 task-card todo-card">
                                     {% if request.user.role == 'staff' %}
+                                    <!-- Badge for staff users -->
                                     <div class="mb-2">
                                         {% if task.assigned_to == request.user %}
                                             <span class="badge bg-primary">My Task</span>
@@ -819,99 +815,13 @@
                                         {% if not task.team and not task.assigned_to %}Unassigned{% endif %}
                                     </p>
 
-                                    <div class="text-center my-2">
-                                        {% if request.user.role == 'staff' and task.assigned_to != request.user %}
-                                            <div class="task-timer-badge">
-                                                <i class="fas fa-clock me-1"></i>
-                                                <span>
-                                                    {% if task.total_time %}
-                                                        {{ task.total_time|format_duration }}
-                                                    {% else %}
-                                                        In Progress
-                                                    {% endif %}
-                                                </span>
-                                            </div>
-                                        {% else %}
-                                            <div class="task-timer-badge {% if task.is_paused %}paused{% endif %}" id="task-timer-{{ task.id }}">
-                                                <i class="fas fa-clock me-1"></i>
-                                                <span id="task-time-{{ task.id }}">0h 0m 0s</span>
-                                            </div>
-                                        {% endif %}
-                                    </div>
-
-                                    {% if task.subtasks.all %}
-                                        <div class="mt-3 mb-2">
-                                            <small class="text-muted fw-bold">Subtasks:</small>
-                                            {% for subtask in task.subtasks.all %}
-                                                <div class="subtask d-flex justify-content-between align-items-center mb-2 p-2 bg-light rounded"
-                                                    {% if request.user.role != 'staff' or task.assigned_to == request.user %}
-                                                    id="subtask-{{ subtask.id }}"
-                                                    data-subtask-id="{{ subtask.id }}"
-                                                    data-task-id="{{ task.id }}"
-                                                    data-time-spent="{{ subtask.time_spent_seconds|default:0 }}"
-                                                    {% endif %}>
-                                                    
-                                                    <div>
-                                                        <strong class="small">{{ subtask.title }}</strong><br>
-                                                        <span class="badge bg-secondary" 
-                                                              {% if request.user.role != 'staff' or task.assigned_to == request.user %}
-                                                              id="timer-{{ subtask.id }}"
-                                                              {% endif %}>
-                                                            {{ subtask.time_spent_seconds|format_duration }}
-                                                        </span>
-                                                    </div>
-                                                    
-                                                    {% if request.user.role == 'staff' and task.assigned_to != request.user %}
-                                                    {% else %}
-                                                        <div>
-                                                            {% if not is_read_only %}
-                                                                <button class="btn btn-sm btn-success" id="start-{{ subtask.id }}" 
-                                                                    onclick="startSubtaskTimer({{ subtask.id }}, {{ subtask.time_spent_seconds|default:0 }})">
-                                                                    <i class="fas fa-play"></i>
-                                                                </button>
-                                                                <button class="btn btn-sm btn-danger" id="stop-{{ subtask.id }}" 
-                                                                    onclick="stopSubtaskTimer({{ subtask.id }})" disabled>
-                                                                    <i class="fas fa-stop"></i>
-                                                                </button>
-                                                            {% else %}
-                                                                <button class="btn btn-sm btn-success" disabled title="Read Only"><i class="fas fa-play"></i></button>
-                                                                <button class="btn btn-sm btn-danger" disabled title="Read Only"><i class="fas fa-stop"></i></button>
-                                                            {% endif %}
-                                                        </div>
-                                                    {% endif %}
-                                                </div>
-                                            {% endfor %}
-                                        </div>
-                                    {% endif %}
-
                                     <div class="task-actions">
                                         {% if request.user.role == 'staff' %}
-                                            {% if task.assigned_to == request.user %}
-                                                {% if not is_read_only %}
-                                                    <button type="button" class="task-action-btn btn-pause-task" id="pause-btn-{{ task.id }}" onclick="pauseTask({{ task.id }})" {% if task.is_paused %}style="display: none;"{% endif %}>
-                                                        <i class="fas fa-pause"></i>
-                                                        <span>Pause Task</span>
-                                                    </button>
-                                                    <button type="button" class="task-action-btn btn-resume-task" id="resume-btn-{{ task.id }}" onclick="resumeTask({{ task.id }})" {% if not task.is_paused %}style="display: none;"{% endif %}>
-                                                        <i class="fas fa-play"></i>
-                                                        <span>Resume Task</span>
-                                                    </button>
-                                                    <form method="POST" action="{% url 'accounts:update_task_status' %}" onsubmit="return beforeComplete({{ task.id }})">
-                                                        {% csrf_token %}
-                                                        <input type="hidden" name="task_id" value="{{ task.id }}">
-                                                        <input type="hidden" name="new_status" value="done">
-                                                        <input type="hidden" name="total_time" id="total-time-{{ task.id }}" value="0">
-                                                        <button type="submit" class="task-action-btn btn-move-done">
-                                                            <i class="fas fa-check"></i>
-                                                            <span>Mark Complete</span>
-                                                        </button>
-                                                    </form>
-                                                {% else %}
-                                                    <button type="button" class="task-action-btn btn-pause-task" disabled title="Read only">
-                                                        <i class="fas fa-pause"></i>
-                                                        <span>Read only</span>
-                                                    </button>
-                                                {% endif %}
+                                            {% if task.assigned_to == request.user and not is_read_only %}
+                                                <button type="button" class="task-action-btn btn-move-progress" onclick="startTask({{ task.id }})">
+                                                    <i class="fas fa-play"></i>
+                                                    <span>Start Working</span>
+                                                </button>
                                             {% else %}
                                                 <div class="alert alert-info small mb-0 text-center py-2">
                                                     <i class="fas fa-eye me-1"></i>View Only
@@ -919,45 +829,22 @@
                                             {% endif %}
                                         {% else %}
                                             {% if not is_read_only %}
-                                                <button type="button" class="task-action-btn btn-pause-task" id="pause-btn-{{ task.id }}" onclick="pauseTask({{ task.id }})" {% if task.is_paused %}style="display: none;"{% endif %}>
-                                                    <i class="fas fa-pause"></i>
-                                                    <span>Pause Task</span>
-                                                </button>
-                                                <button type="button" class="task-action-btn btn-resume-task" id="resume-btn-{{ task.id }}" onclick="resumeTask({{ task.id }})" {% if not task.is_paused %}style="display: none;"{% endif %}>
-                                                    <i class="fas fa-play"></i>
-                                                    <span>Resume Task</span>
-                                                </button>
-                                                <form method="POST" action="{% url 'accounts:update_task_status' %}" onsubmit="return beforeComplete({{ task.id }})">
-                                                    {% csrf_token %}
-                                                    <input type="hidden" name="task_id" value="{{ task.id }}">
-                                                    <input type="hidden" name="new_status" value="done">
-                                                    <input type="hidden" name="total_time" id="total-time-{{ task.id }}" value="0">
-                                                    <button type="submit" class="task-action-btn btn-move-done">
-                                                        <i class="fas fa-check"></i>
-                                                        <span>Mark Complete</span>
-                                                    </button>
-                                                </form>
+                                            <button type="button" class="task-action-btn btn-move-progress" onclick="startTask({{ task.id }})">
+                                                <i class="fas fa-play"></i>
+                                                <span>Start Working</span>
+                                            </button>
                                             {% else %}
-                                                <button type="button" class="task-action-btn btn-pause-task" disabled title="Read only" {% if task.is_paused %}style="display:none;"{% endif %}>
-                                                    <i class="fas fa-pause"></i>
-                                                    <span>Read only</span>
-                                                </button>
-                                                <button type="button" class="task-action-btn btn-resume-task" disabled title="Read only" {% if not task.is_paused %}style="display:none;"{% endif %}>
-                                                    <i class="fas fa-play"></i>
-                                                    <span>Read only</span>
-                                                </button>
-                                                <button class="task-action-btn btn-move-done" disabled title="Read only">
-                                                    <i class="fas fa-check"></i>
-                                                    <span>Read only</span>
-                                                </button>
+                                            <button type="button" class="task-action-btn btn-move-progress" disabled title="Read only"> 
+                                                <i class="fas fa-play"></i>
+                                                <span>Read only</span>
+                                            </button>
                                             {% endif %}
                                         {% endif %}
                                     </div>
                                 </div>
                             {% empty %}
-                                <p class="text-muted text-center no-tasks-msg">No tasks</p>
+                                <p class="text-muted text-center">No tasks</p>
                             {% endfor %}
-                            </div>
                         </div>
                         
                         <!-- In Progress Column -->

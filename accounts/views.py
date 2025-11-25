@@ -1364,7 +1364,6 @@ def delete_team(request, team_id):
 
 
 
-
 @login_required
 def create_project(request):
     user = request.user
@@ -1373,36 +1372,63 @@ def create_project(request):
         name = request.POST.get('name')
         description = request.POST.get('description')
         keyword = request.POST.get('keyword', '').strip()
-
-        # NEW → get dates
         start_date = request.POST.get('start_date') or None
         end_date = request.POST.get('end_date') or None
 
-        if name:
-            project = Project.objects.create(
-                name=name,
-                description=description,
-                keyword=keyword,
-                created_by=user,
-                created_at=timezone.now(),
-                start_date=start_date,   # NEW
-                end_date=end_date        # NEW
-            )
+        if not name:
+            messages.error(request, "Project name is required.")
+            return redirect(request.META.get('HTTP_REFERER', '/'))
 
-            # If HOD, automatically associate with their departments
-            if user.role == 'hod':
-                hod_departments = user.department.all()
-                if hod_departments.exists():
-                    project.department.set(hod_departments)
-                else:
-                    messages.error(request, 'No departments found to associate with the project.')
+        # Create project
+        project = Project.objects.create(
+            name=name,
+            description=description,
+            keyword=keyword,
+            created_by=user,
+            created_at=timezone.now(),
+            start_date=start_date,
+            end_date=end_date
+        )
 
-            project.save()
+        # 🔥 AUTO-ASSIGN DEPARTMENTS BASED ON ROLE
+
+        # -------------------------
+        # 1️⃣ STAFF → Only their dept
+        # -------------------------
+        if user.role == "staff":
+            staff_departments = user.department.all()
+            if staff_departments.exists():
+                project.department.set(staff_departments)
+            else:
+                messages.error(request, "Staff has no department assigned.")
+
+        # -------------------------
+        # 2️⃣ HOD → All their departments
+        # -------------------------
+        elif user.role == "hod":
+            hod_departments = user.department.all()
+            if hod_departments.exists():
+                project.department.set(hod_departments)
+            else:
+                messages.error(request, "HOD has no department assigned.")
+
+        # -------------------------
+        # 3️⃣ COORDINATOR → Read-only (should NOT create project)
+        # -------------------------
+        elif user.role == "coordinator":
+            messages.error(request, "Coordinator cannot create projects.")
+            project.delete()
+            return redirect('accounts:coordinator_dashboard')
+
+        project.save()
+
+        # Redirect based on role
+        if user.role == "hod":
             return redirect('accounts:hod_dashboard')
+        else:
+            return redirect('accounts:staff_dashboard')
 
     return render(request, 'accounts/create_project.html')
-
-
 
 
 @login_required
@@ -3535,7 +3561,7 @@ def coordinator_dashboard_1(request):
     now = timezone.now()
     today = now.date()
 
-    # Helper for project date-based status
+    # Helper: Date-based status
     def get_project_status(project):
         if project.start_date and project.end_date:
             if today < project.start_date:
@@ -3547,44 +3573,39 @@ def coordinator_dashboard_1(request):
         return "upcoming"
 
     # ---------------------------------------------------
-    # 1️⃣ Campus → Schools → Departments → Users
+    # 1️⃣ Extract Campus → Schools → Departments → Users
     # ---------------------------------------------------
     coordinator_campus = user.campus
 
+    # Keep ALL schools and ALL departments for THIS CAMPUS
     schools = School.objects.filter(campus=coordinator_campus)
     departments = Department.objects.filter(school__in=schools)
     campus_users = CustomUser.objects.filter(campus=coordinator_campus)
 
     # ---------------------------------------------------
-    # 2️⃣ SCHOOL FILTER
+    # 2️⃣ School Filter (but DO NOT overwrite schools list)
     # ---------------------------------------------------
     selected_school_id = request.GET.get("school")
     selected_school = None
 
     if selected_school_id:
-        selected_school = School.objects.filter(
-            id=selected_school_id, 
-            campus=coordinator_campus
-        ).first()
+        selected_school = schools.filter(id=selected_school_id).first()
 
-        if selected_school:
-            # Only keep selected school
-            schools = schools.filter(id=selected_school.id)
-
-            # Filter departments & users to selected school
-            departments = departments.filter(school=selected_school)
-            campus_users = campus_users.filter(school=selected_school)
-
-    # ---------------------------------------------------
-    # 3️⃣ PROJECT QUERY (TRUE SCHOOL FILTER)
-    # ---------------------------------------------------
     if selected_school:
-        project_departments = Department.objects.filter(school=selected_school)
+        filtered_departments = departments.filter(school=selected_school)
+        filtered_users = campus_users.filter(school=selected_school)
     else:
-        project_departments = departments
+        filtered_departments = departments
+        filtered_users = campus_users
 
+    # ---------------------------------------------------
+    # 3️⃣ Campus-Wide Project Query
+    # ---------------------------------------------------
     projects_qs = Project.objects.filter(
-        department__in=project_departments
+        Q(created_by__in=filtered_users) |
+        Q(tasks__assigned_to__in=filtered_users) |
+        Q(teams__members__in=filtered_users) |
+        Q(department__in=filtered_departments)
     ).distinct()
 
     # ---------------------------------------------------
@@ -3597,9 +3618,13 @@ def coordinator_dashboard_1(request):
     current_project = projects_qs.filter(id=selected_project_id).first() if selected_project_id else None
 
     # ---------------------------------------------------
-    # 5️⃣ TASKS (Filtered by selected school + project)
+    # 5️⃣ Campus-Wide Tasks
     # ---------------------------------------------------
-    tasks_qs = Task.objects.filter(project__in=projects_qs).distinct()
+    tasks_qs = Task.objects.filter(
+        Q(project__in=projects_qs) |
+        Q(assigned_to__in=filtered_users) |
+        Q(team__members__in=filtered_users)
+    ).distinct()
 
     if current_project:
         tasks_qs = tasks_qs.filter(project=current_project)
@@ -3626,16 +3651,25 @@ def coordinator_dashboard_1(request):
     ).count()
 
     # ---------------------------------------------------
-    # 6️⃣ TEAMS (Filtered by school → projects)
+    # 6️⃣ Campus-Wide Teams
     # ---------------------------------------------------
     all_allowed_teams = Team.objects.filter(
-        project__in=projects_qs
+        Q(project__in=projects_qs) |
+        Q(members__in=filtered_users)
     ).distinct()
 
     teams = all_allowed_teams.filter(project=current_project) if current_project else all_allowed_teams
 
     # ---------------------------------------------------
-    # 7️⃣ PROJECT STATUS ANALYTICS
+    # 7️⃣ Staff + Students For Filters
+    # ---------------------------------------------------
+    staff_and_students = CustomUser.objects.filter(
+        campus=coordinator_campus,
+        role__in=["staff", "student"]
+    ).order_by("email").distinct()
+
+    # ---------------------------------------------------
+    # 8️⃣ Project Status Analytics
     # ---------------------------------------------------
     total_projects = projects_qs.count()
     ongoing_projects = 0
@@ -3652,10 +3686,12 @@ def coordinator_dashboard_1(request):
             completed_projects += 1
 
     # ---------------------------------------------------
-    # 8️⃣ Schools with Project Counts
+    # 9️⃣ Schools → Project Counts (use ALL schools)
     # ---------------------------------------------------
     schools_with_counts = []
-    for school in schools:
+    all_schools = School.objects.filter(campus=coordinator_campus)
+
+    for school in all_schools:
         school_departments = Department.objects.filter(school=school)
         count = projects_qs.filter(department__in=school_departments).distinct().count()
 
@@ -3666,11 +3702,12 @@ def coordinator_dashboard_1(request):
         })
 
     # ---------------------------------------------------
-    # 9️⃣ Departments with Project Counts
+    # 🔟 Departments → Project Counts
     # ---------------------------------------------------
     departments_with_counts = []
-    for dept in departments:
+    for dept in filtered_departments:
         count = projects_qs.filter(department=dept).distinct().count()
+
         departments_with_counts.append({
             "id": dept.id,
             "name": dept.name,
@@ -3679,19 +3716,22 @@ def coordinator_dashboard_1(request):
         })
 
     # ---------------------------------------------------
-    # 🔟 Recent Projects List
+    # 1️⃣1️⃣ Recent Projects (Campus-Wide)
     # ---------------------------------------------------
     recent_projects_list = []
-    for project in projects_qs.order_by('-created_at')[:20]:
-        school_name = project.department.first().school.name if project.department.exists() else "No School"
-
+    for project in projects_qs.order_by("-created_at")[:20]:
+        school_name = (
+            project.department.first().school.name
+            if project.department.exists()
+            else "No School"
+        )
         recent_projects_list.append({
-            'id': project.id,
-            'name': project.name,
-            'school': school_name,
-            'start_date': project.start_date,
-            'end_date': project.end_date,
-            'status': get_project_status(project)
+            "id": project.id,
+            "name": project.name,
+            "school": school_name,
+            "start_date": project.start_date,
+            "end_date": project.end_date,
+            "status": get_project_status(project),
         })
 
     # ---------------------------------------------------
@@ -3722,15 +3762,18 @@ def coordinator_dashboard_1(request):
         "upcoming_projects": upcoming_projects,
         "completed_projects": completed_projects,
 
-        "total_departments": departments.count(),
-        "total_schools": schools.count(),
+        "total_departments": filtered_departments.count(),
+        "total_schools": all_schools.count(),
         "total_teams": teams.count(),
         "recent_projects": recent_projects_list,
+
+        "staff_and_students": staff_and_students,
 
         "is_read_only": True,
     }
 
     return render(request, "accounts/coordinator_dashboard.html", context)
+
 
 
 def assign_coordinator_relations(user):
