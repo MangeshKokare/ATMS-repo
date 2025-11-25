@@ -223,7 +223,14 @@
       border-color: var(--atms-blue);
       transform: scale(1.05);
     }
+    .section-header > a {
+        color: #000 !important;
+        font-weight: 600;
+    }
 
+    .section-header > a i {
+        color: #000 !important;
+    }
     /* Divider */
     .sidebar-divider {
       border: none;
@@ -670,7 +677,10 @@
 
     <!-- Projects Section -->
     <div class="section-header d-flex justify-content-between align-items-center">
-        <h6>Projects</h6>
+        <a href="{% url 'accounts:projects_list' %}"
+          class="{% if request.resolver_match.url_name == 'projects_list' %}active{% endif %}">
+            <i class="fas fa-project-diagram"></i> Projects
+        </a>
         {% if request.user.role != 'coordinator' %}
         <a href="#" class="add-btn" data-bs-toggle="modal" data-bs-target="#createProjectModal" onclick="resetProjectModal()">
             <i class="fas fa-plus"></i>
@@ -758,7 +768,10 @@
 
     <!-- Teams Section -->
     <div class="section-header d-flex justify-content-between align-items-center">
-        <h6>Teams</h6>
+        <a href="{% url 'accounts:teams_list' %}"
+          class="{% if request.resolver_match.url_name == 'teams_list' %}active{% endif %}">
+            <i class="fas fa-users"></i> Teams
+        </a>
         {% if request.user.role != 'coordinator' %}
         <a href="#" class="add-btn" data-bs-toggle="modal" data-bs-target="#createTeamModal" onclick="resetTeamModal()">
             <i class="fas fa-plus"></i>

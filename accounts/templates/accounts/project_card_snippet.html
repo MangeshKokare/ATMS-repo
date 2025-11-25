@@ -1,0 +1,377 @@
+    <div class="project-card h-100 d-flex flex-column">
+        <!-- Project Header -->
+        <div class="project-card-header 
+            {% if project.status == 'ongoing' %}ongoing
+            {% elif project.status == 'completed' %}completed
+            {% elif project.status == 'upcoming' %}upcoming
+            {% endif %}
+        ">
+            <div class="d-flex align-items-start justify-content-between">
+                <div class="flex-grow-1">
+                    <h5 class="project-card-title">
+                        <i class="fas fa-folder me-2"></i>{{ project.name }}
+                    </h5>
+
+                    <div class="project-status-badge">
+                        {% if project.status == 'ongoing' %}
+                            <i class="fas fa-play-circle me-1"></i>Ongoing
+                        {% elif project.status == 'completed' %}
+                            <i class="fas fa-check-circle me-1"></i>Completed
+                        {% elif project.status == 'upcoming' %}
+                            <i class="fas fa-clock me-1"></i>Upcoming
+                        {% else %}
+                            <i class="fas fa-circle me-1"></i>Not Started
+                        {% endif %}
+                    </div>
+
+                    {% if project.keyword %}
+                    <div class="project-keyword-badge">
+                        <i class="fas fa-tag me-1"></i>{{ project.keyword }}
+                    </div>
+                    {% endif %}
+                </div>
+
+                {% if request.user.role != 'coordinator' %}
+                <div class="dropdown">
+                    <button class="project-card-menu-btn" type="button" data-bs-toggle="dropdown">
+                        <i class="fas fa-ellipsis-v"></i>
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end">
+                        <li>
+                            <a class="dropdown-item text-primary" href="#"
+                            onclick="openEditProjectModal(
+                                {{ project.id }},
+                                '{{ project.name|escapejs }}',
+                                '{{ project.description|escapejs }}',
+                                '{{ project.keyword|default:''|escapejs }}',
+                                '{{ project.start_date|date:'Y-m-d'|default:'' }}',
+                                '{{ project.end_date|date:'Y-m-d'|default:'' }}'
+                            ); return false;">
+                                <i class="fas fa-edit me-2"></i>Edit Project
+                            </a>
+                        </li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li>
+                            <a class="dropdown-item text-danger"
+                            href="{% url 'accounts:delete_project' project.id %}"
+                            onclick="return confirm('Are you sure you want to delete {{ project.name|escapejs }}?');">
+                                <i class="fas fa-trash me-2"></i>Delete Project
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Project Body -->
+        <div class="project-card-body flex-grow-1">
+            <div class="project-description-section">
+                <div class="section-label">
+                    <i class="fas fa-align-left me-2"></i>Description
+                </div>
+                <p class="project-description-text">
+                    {{ project.description|default:"No description available"|truncatewords:20 }}
+                </p>
+            </div>
+
+            {% if project.start_date or project.end_date %}
+            <div class="project-dates-section">
+                <div class="section-label">
+                    <i class="fas fa-calendar-alt me-2"></i>Timeline
+                </div>
+
+                <div class="date-range">
+                    {% if project.start_date %}
+                    <div class="date-item">
+                        <i class="fas fa-calendar-plus text-success"></i>
+                        <div>
+                            <div class="date-label">Start Date</div>
+                            <div class="date-value">{{ project.start_date|date:"M d, Y" }}</div>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    {% if project.end_date %}
+                    <div class="date-item">
+                        <i class="fas fa-calendar-check text-danger"></i>
+                        <div>
+                            <div class="date-label">End Date</div>
+                            <div class="date-value">{{ project.end_date|date:"M d, Y" }}</div>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+
+            <div class="project-teams-section">
+                <div class="section-label">
+                    <i class="fas fa-users me-2"></i>Teams
+                    <span class="teams-count">{{ project.teams.all|length }}</span>
+                </div>
+
+                {% if project.teams.all %}
+                <div class="teams-list">
+                    {% for team in project.teams.all|slice:":3" %}
+                    <div class="team-badge">
+                        <i class="fas fa-user-friends me-1"></i>{{ team.name }}
+                    </div>
+                    {% endfor %}
+
+                    {% if project.teams.all|length > 3 %}
+                    <div class="team-badge more-teams">
+                        +{{ project.teams.all|length|add:"-3" }} more
+                    </div>
+                    {% endif %}
+                </div>
+                {% else %}
+                <div class="empty-teams">
+                    <i class="fas fa-users-slash"></i>
+                    <span>No teams assigned</span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="project-card-footer">
+            <div class="project-stat">
+                <i class="fas fa-tasks me-2"></i>
+                <span>{{ project.tasks.all|length }} Tasks</span>
+            </div>
+
+            <div class="project-stat">
+                <i class="fas fa-clock me-2"></i>
+                <span>Created {{ project.created_at|date:"M d, Y" }}</span>
+            </div>
+        </div>
+    </div>
+
+    <style>
+    /* Project Cards */
+    .project-card {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        overflow: hidden;
+        transition: all 0.3s ease;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .project-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 8px 20px rgba(0,0,0,0.12);
+    }
+
+    .project-card-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        padding: 20px;
+        color: white;
+    }
+
+    .project-card-header.ongoing {
+        background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+    }
+
+    .project-card-header.completed {
+        background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+    }
+
+    .project-card-header.upcoming {
+        background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+    }
+
+    .project-card-title {
+        font-size: 18px;
+        font-weight: 600;
+        margin: 0 0 8px 0;
+        color: white;
+    }
+
+    .project-status-badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 4px 12px;
+        background: rgba(255,255,255,0.25);
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 500;
+        margin-right: 6px;
+        margin-bottom: 4px;
+    }
+
+    .project-keyword-badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 4px 12px;
+        background: rgba(255,255,255,0.15);
+        border-radius: 20px;
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 4px;
+    }
+
+    .project-card-menu-btn {
+        background: rgba(255,255,255,0.2);
+        border: none;
+        color: white;
+        width: 32px;
+        height: 32px;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+
+    .project-card-menu-btn:hover {
+        background: rgba(255,255,255,0.3);
+    }
+
+    .project-card-body {
+        padding: 20px;
+        flex-grow: 1;
+    }
+
+    /* Description Section */
+    .project-description-section {
+        margin-bottom: 20px;
+        padding-bottom: 20px;
+        border-bottom: 1px solid #e9ecef;
+    }
+
+    .section-label {
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--secondary-text);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 10px;
+        display: flex;
+        align-items: center;
+    }
+
+    .project-description-text {
+        font-size: 13px;
+        color: var(--primary-text);
+        line-height: 1.6;
+        margin: 0;
+    }
+
+    /* Dates Section */
+    .project-dates-section {
+        margin-bottom: 20px;
+        padding-bottom: 20px;
+        border-bottom: 1px solid #e9ecef;
+    }
+
+    .date-range {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        gap: 12px;
+    }
+
+    .date-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px;
+        background: #f8f9fa;
+        border-radius: 8px;
+    }
+
+    .date-item i {
+        font-size: 20px;
+    }
+
+    .date-label {
+        font-size: 11px;
+        color: var(--secondary-text);
+        font-weight: 500;
+    }
+
+    .date-value {
+        font-size: 13px;
+        color: var(--primary-text);
+        font-weight: 600;
+    }
+
+    /* Teams Section */
+    .project-teams-section {
+        margin-bottom: 0;
+    }
+
+    .teams-count {
+        background: var(--atms-blue);
+        color: white;
+        padding: 2px 8px;
+        border-radius: 12px;
+        font-size: 11px;
+        margin-left: 8px;
+    }
+
+    .teams-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 10px;
+    }
+
+    .team-badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 6px 12px;
+        background: #e8f0fe;
+        color: var(--atms-blue);
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 500;
+    }
+
+    .team-badge.more-teams {
+        background: #f8f9fa;
+        color: var(--secondary-text);
+    }
+
+    .empty-teams {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 12px;
+        background: #f8f9fa;
+        border-radius: 8px;
+        color: var(--secondary-text);
+        font-size: 13px;
+        margin-top: 10px;
+    }
+
+    .empty-teams i {
+        opacity: 0.5;
+    }
+
+    /* Project Footer */
+    .project-card-footer {
+        display: flex;
+        justify-content: space-between;
+        padding: 16px 20px;
+        background: #f8f9fa;
+        border-top: 1px solid #e9ecef;
+    }
+
+    .project-stat {
+        display: flex;
+        align-items: center;
+        font-size: 12px;
+        color: var(--secondary-text);
+    }
+
+    .project-stat i {
+        color: var(--atms-blue);
+    }
+    </style>

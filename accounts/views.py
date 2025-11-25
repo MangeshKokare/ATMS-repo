@@ -13,6 +13,7 @@ from .forms import CSVUploadForm
 from .models import UploadedFile
 from .forms import TaskForm
 from .models import CustomUser, Team, Task, Project
+from django.db import models
 
 from allauth.account.models import EmailAddress
 from allauth.socialaccount.models import SocialAccount, SocialLogin, SocialApp
@@ -2285,99 +2286,115 @@ def student_dashboard(request):
 
     return render(request, 'accounts/student_dashboard.html', context)
 
-  
 @login_required
-def teams_page(request):
-    user = request.user
-
-    if user.role == 'hod':
-        hod_departments = user.department.all()
-        staff_qs = CustomUser.objects.filter(role='staff', department__in=hod_departments).distinct()
-
-        # Projects
-        projects = Project.objects.filter(
-            Q(created_by=user) |
-            Q(created_by__in=staff_qs) |
-            Q(department__in=hod_departments)
-        ).distinct()
-
-        # Users in HOD's departments
-        staff_and_students = CustomUser.objects.filter(
-            role='staff',
-            department__in=hod_departments
-        ).distinct()
-
-        # Teams in HOD's departments
+def teams_page(request): 
+    """
+    Display all teams in an expanded view with detailed information
+    """
+    # Get all teams based on user role
+    if request.user.role == 'hod':
+        teams = Team.objects.all().select_related('project', 'head').prefetch_related('members')
+        projects = Project.objects.all()
+    elif request.user.role == 'coordinator':
+        teams = Team.objects.all().select_related('project', 'head').prefetch_related('members')
+        projects = Project.objects.all()
+    else:  # staff
+        # Get teams where user is head or member
         teams = Team.objects.filter(
-            Q(members__department__in=hod_departments) |
-            Q(staff__department__in=hod_departments)
-        ).distinct().prefetch_related(
-            Prefetch("members", queryset=CustomUser.objects.filter(department__in=hod_departments).distinct())
-        )
-
-    else:  # Staff
-        user_departments = user.department.all()
-
-        # Projects
+            models.Q(head=request.user) | models.Q(members=request.user)
+        ).distinct().select_related('project', 'head').prefetch_related('members')
         projects = Project.objects.filter(
-            Q(tasks__assigned_to=user) |
-            Q(created_by=user) |
-            Q(department__in=user_departments)
+            models.Q(teams__head=request.user) | models.Q(teams__members=request.user)
         ).distinct()
-
-        # Users in staff's departments
-        staff_and_students = CustomUser.objects.filter(
-            role='staff',
-            department__in=user_departments
-        ).distinct()
-
-        # Teams in staff's departments
-        teams = Team.objects.filter(
-            Q(members__department__in=user_departments) |
-            Q(staff__department__in=user_departments) |
-            Q(members=user) |
-            Q(staff=user)
-        ).distinct().prefetch_related(
-            Prefetch("members", queryset=CustomUser.objects.filter(department__in=user_departments).distinct())
-        )
-
-    # Current project selection
-    project_id = request.GET.get('project')
-    current_project = get_object_or_404(projects, id=project_id) if project_id else None
-
-    # Tasks for selected project or all visible projects
-    if current_project:
-        tasks = Task.objects.filter(project=current_project)
-    else:
-        tasks = Task.objects.filter(project__in=projects)
-
-    # Filters
-    query = request.GET.get('q')
-    status = request.GET.get('status')
-    priority = request.GET.get('priority')
-    team_filter = request.GET.get('team')
-
-    if query:
-        tasks = tasks.filter(title__icontains=query)
-    if status:
-        tasks = tasks.filter(status=status)
-    if priority:
-        tasks = tasks.filter(priority=priority)
-    if team_filter:
-        tasks = tasks.filter(team__id=team_filter)
-
-    # Context
+    
+    # Get all staff and students for the team modal
+    from django.contrib.auth import get_user_model
+    User = get_user_model()
+    staff_and_students = User.objects.filter(role__in=['staff', 'student']).order_by('email')
+    
+    # Calculate statistics
+    teams_with_projects = teams.filter(project__isnull=False).count()
+    total_team_heads = teams.values('head').distinct().count()
+    
+    # Calculate total unique members across all teams
+    all_member_ids = set()
+    for team in teams:
+        all_member_ids.add(team.head.id)
+        all_member_ids.update(team.members.values_list('id', flat=True))
+    total_members = len(all_member_ids)
+    
     context = {
-        'projects': projects,
-        'tasks': tasks,
         'teams': teams,
-        'current_project': current_project,
-        'active_tab': 'backlog',
+        'projects': projects,
         'staff_and_students': staff_and_students,
+        'teams_with_projects': teams_with_projects,
+        'total_team_heads': total_team_heads,
+        'total_members': total_members,
     }
-
+    
     return render(request, 'accounts/teams_page.html', context)
 
+
+@login_required
+def projects_page(request):
+    """
+    Display all projects with dynamic status and detailed view.
+    """
+
+    # Filter projects based on user role
+    if request.user.role in ['hod', 'coordinator']:
+        projects = Project.objects.all().prefetch_related('teams', 'tasks')
+    else:  # staff
+        projects = Project.objects.filter(
+            models.Q(teams__head=request.user) |
+            models.Q(teams__members=request.user)
+        ).distinct().prefetch_related('teams', 'tasks')
+
+    # Get staff + students for UI modals
+    from django.contrib.auth import get_user_model
+    User = get_user_model()
+    
+    staff_and_students = User.objects.filter(
+        role__in=['staff', 'student']
+    ).order_by('email')
+
+    # Get team list based on role
+    if request.user.role in ['hod', 'coordinator']:
+        teams = Team.objects.all().select_related('project', 'head').prefetch_related('members')
+    else:
+        teams = Team.objects.filter(
+            models.Q(head=request.user) |
+            models.Q(members=request.user)
+        ).distinct().select_related('project', 'head').prefetch_related('members')
+
+    # -------------------------
+    # PROJECT STATUS COUNTERS
+    # -------------------------
+    ongoing_projects = 0
+    completed_projects = 0
+    upcoming_projects = 0
+
+    for project in projects:
+        status = project.status   # <-- Uses @property
+
+        if status == "ongoing":
+            ongoing_projects += 1
+        elif status == "completed":
+            completed_projects += 1
+        elif status == "upcoming":
+            upcoming_projects += 1
+
+    context = {
+        'projects': projects,
+        'teams': teams,
+        'staff_and_students': staff_and_students,
+        'ongoing_projects': ongoing_projects,
+        'completed_projects': completed_projects,
+        'upcoming_projects': upcoming_projects,
+    }
+
+    return render(request, 'accounts/projects_page.html', context)
+    
 @login_required
 def create_team(request):
     """Create a new team with selected head and project"""

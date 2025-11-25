@@ -134,4 +134,7 @@ urlpatterns = [
     path('coordinator/dashboard/', views.coordinator_dashboard, name='coordinator_dashboard'),
     path("coordinator/dashboard1/", views.coordinator_dashboard_1, name="coordinator_dashboard_1"),
 
+    path('teams/', views.teams_page, name='teams_list'),
+    path('projects/', views.projects_page, name='projects_list'),
+
 ] 

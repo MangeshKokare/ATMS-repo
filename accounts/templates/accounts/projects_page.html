@@ -1,0 +1,299 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Projects - ATMS Dashboard{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Page Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="mb-1" style="font-weight: 700; color: var(--primary-text);">
+                <i class="fas fa-project-diagram me-2" style="color: var(--atms-blue);"></i>Projects Overview
+            </h2>
+            <p class="text-muted mb-0">Manage and view all your projects in one place</p>
+        </div>
+        {% if request.user.role != 'coordinator' %}
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createProjectModal" onclick="resetProjectModal()" style="padding: 10px 24px; border-radius: 8px; font-weight: 500;">
+            <i class="fas fa-plus me-2"></i>Create New Project
+        </button>
+        {% endif %}
+    </div>
+
+    <!-- Projects Stats -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="stat-card">
+                <div class="stat-icon" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                    <i class="fas fa-project-diagram"></i>
+                </div>
+                <div class="stat-content">
+                    <h3>{{ projects|length }}</h3>
+                    <p>Total Projects</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stat-card">
+                <div class="stat-icon" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);">
+                    <i class="fas fa-play-circle"></i>
+                </div>
+                <div class="stat-content">
+                    <h3>{{ ongoing_projects }}</h3>
+                    <p>Ongoing Projects</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stat-card">
+                <div class="stat-icon" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+                    <i class="fas fa-check-circle"></i>
+                </div>
+                <div class="stat-content">
+                    <h3>{{ completed_projects }}</h3>
+                    <p>Completed Projects</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stat-card">
+                <div class="stat-icon" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                    <i class="fas fa-clock"></i>
+                </div>
+                <div class="stat-content">
+                    <h3>{{ upcoming_projects }}</h3>
+                    <p>Upcoming Projects</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filter Tabs -->
+    <ul class="nav nav-pills mb-4" id="projectFilter" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="all-tab" data-bs-toggle="pill" data-bs-target="#all-projects" type="button" role="tab">
+                <i class="fas fa-th me-2"></i>All Projects
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="ongoing-tab" data-bs-toggle="pill" data-bs-target="#ongoing-projects" type="button" role="tab">
+                <i class="fas fa-play-circle me-2"></i>Ongoing
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="completed-tab" data-bs-toggle="pill" data-bs-target="#completed-projects" type="button" role="tab">
+                <i class="fas fa-check-circle me-2"></i>Completed
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="upcoming-tab" data-bs-toggle="pill" data-bs-target="#upcoming-projects" type="button" role="tab">
+                <i class="fas fa-clock me-2"></i>Upcoming
+            </button>
+        </li>
+    </ul>
+
+    <!-- Tab Content -->
+    <div class="tab-content" id="projectFilterContent">
+        <!-- All Projects Tab -->
+        <div class="tab-pane fade show active" id="all-projects" role="tabpanel">
+            <div class="row">
+                {% for project in projects %}
+                <div class="col-lg-6 col-xl-4 mb-4">
+                    {% include 'accounts/project_card_snippet.html' with project=project %}
+                </div>
+                {% empty %}
+                <div class="col-12">
+                    <div class="empty-state-large">
+                        <i class="fas fa-project-diagram mb-3"></i>
+                        <h4>No Projects Yet</h4>
+                        <p>Create your first project to get started with organizing your work</p>
+                        {% if request.user.role != 'coordinator' %}
+                        <button class="btn btn-primary mt-3" data-bs-toggle="modal" data-bs-target="#createProjectModal" onclick="resetProjectModal()">
+                            <i class="fas fa-plus me-2"></i>Create First Project
+                        </button>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Ongoing Projects Tab -->
+        <div class="tab-pane fade" id="ongoing-projects" role="tabpanel">
+            <div class="row">
+                {% for project in projects %}
+                    {% if project.status == 'ongoing' %}
+                    <div class="col-lg-6 col-xl-4 mb-4">
+                        {% include 'accounts/project_card_snippet.html' with project=project %}
+                    </div>
+                    {% endif %}
+                {% empty %}
+                    <div class="col-12">
+                        <div class="empty-state-large">
+                            <i class="fas fa-play-circle mb-3"></i>
+                            <h4>No Ongoing Projects</h4>
+                            <p>All projects are either completed or upcoming</p>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Completed Projects Tab -->
+        <div class="tab-pane fade" id="completed-projects" role="tabpanel">
+            <div class="row">
+                {% for project in projects %}
+                    {% if project.status == 'completed' %}
+                    <div class="col-lg-6 col-xl-4 mb-4">
+                        {% include 'accounts/project_card_snippet.html' with project=project %}
+                    </div>
+                    {% endif %}
+                {% empty %}
+                    <div class="col-12">
+                        <div class="empty-state-large">
+                            <i class="fas fa-check-circle mb-3"></i>
+                            <h4>No Completed Projects</h4>
+                            <p>Complete projects will appear here</p>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Upcoming Projects Tab -->
+        <div class="tab-pane fade" id="upcoming-projects" role="tabpanel">
+            <div class="row">
+                {% for project in projects %}
+                    {% if project.status == 'upcoming' %}
+                    <div class="col-lg-6 col-xl-4 mb-4">
+                        {% include 'accounts/project_card_snippet.html' with project=project %}
+                    </div>
+                    {% endif %}
+                {% empty %}
+                    <div class="col-12">
+                        <div class="empty-state-large">
+                            <i class="fas fa-clock mb-3"></i>
+                            <h4>No Upcoming Projects</h4>
+                            <p>Future projects will appear here</p>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+/* Stats Cards */
+.stat-card {
+    background: white;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    transition: all 0.3s ease;
+}
+
+.stat-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+}
+
+.stat-icon {
+    width: 60px;
+    height: 60px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 24px;
+}
+
+.stat-content h3 {
+    font-size: 28px;
+    font-weight: 700;
+    margin: 0;
+    color: var(--primary-text);
+}
+
+.stat-content p {
+    font-size: 14px;
+    color: var(--secondary-text);
+    margin: 0;
+}
+
+/* Filter Pills */
+.nav-pills .nav-link {
+    background: white;
+    color: var(--primary-text);
+    border-radius: 8px;
+    padding: 10px 20px;
+    margin-right: 8px;
+    font-weight: 500;
+    border: 2px solid transparent;
+    transition: all 0.2s ease;
+}
+
+.nav-pills .nav-link:hover {
+    background: var(--hover-bg);
+    border-color: var(--atms-blue);
+}
+
+.nav-pills .nav-link.active {
+    background: var(--atms-blue);
+    color: white;
+    border-color: var(--atms-blue);
+}
+
+.nav-pills .nav-link i {
+    font-size: 14px;
+}
+
+/* Empty State */
+.empty-state-large {
+    text-align: center;
+    padding: 80px 20px;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+
+.empty-state-large i {
+    font-size: 64px;
+    color: var(--border-color);
+}
+
+.empty-state-large h4 {
+    font-size: 24px;
+    font-weight: 600;
+    color: var(--primary-text);
+    margin-bottom: 8px;
+}
+
+.empty-state-large p {
+    font-size: 14px;
+    color: var(--secondary-text);
+    margin: 0;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .stat-card {
+        margin-bottom: 16px;
+    }
+    
+    .nav-pills {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    
+    .nav-pills .nav-link {
+        white-space: nowrap;
+    }
+}
+</style>
+{% endblock %}

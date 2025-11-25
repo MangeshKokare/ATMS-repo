@@ -145,71 +145,43 @@ from django.conf import settings
 
 User = get_user_model()
 
+
 class Project(models.Model):
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True, null=True)
-    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='projects_created')
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='projects_created'
+    )
     created_at = models.DateTimeField(default=timezone.now)
+
+    # ADD THESE FIELDS
+    start_date = models.DateField(null=True, blank=True)
+    end_date = models.DateField(null=True, blank=True)
+
     department = models.ManyToManyField('Department', blank=True)
-    keyword = models.CharField(max_length=50, blank=True, null=True, help_text="Short keyword used as prefix for teams")
-    
-    # Add these new fields
-    start_date = models.DateField(null=True, blank=True, help_text="Project start date")
-    end_date = models.DateField(null=True, blank=True, help_text="Project end date")
 
-    def save(self, *args, **kwargs):
-        if self.keyword:
-            self.keyword = self.keyword.upper().strip()
-        if self.name:
-            self.name = self.name.strip().title()
-        super().save(*args, **kwargs)
+    @property
+    def status(self):
+        """Calculate project status based on date."""
+        today = timezone.now().date()
 
+        if self.end_date and today > self.end_date:
+            return "completed"
+
+        if self.start_date and today < self.start_date:
+            return "upcoming"
+
+        if self.start_date and self.end_date and self.start_date <= today <= self.end_date:
+            return "ongoing"
+
+        return "unknown"
 
     def __str__(self):
         return self.name
-    
-    @property
-    def status(self):
-        """Calculate project status based on dates and tasks"""
-        from django.utils import timezone
-        now = timezone.now().date()
-        
-        # If dates are available, use them for initial status
-        if self.start_date and self.end_date:
-            if now < self.start_date:
-                return 'upcoming'
-            elif now > self.end_date:
-                # Check if all tasks are completed
-                project_tasks = self.tasks.all()
-                if project_tasks.exists():
-                    total_tasks = project_tasks.count()
-                    done_tasks = project_tasks.filter(status='done').count()
-                    return 'completed' if done_tasks == total_tasks else 'ongoing'
-                return 'completed'  # No tasks and past end date
-            else:
-                # Within date range
-                project_tasks = self.tasks.all()
-                if project_tasks.exists():
-                    total_tasks = project_tasks.count()
-                    done_tasks = project_tasks.filter(status='done').count()
-                    return 'completed' if done_tasks == total_tasks else 'ongoing'
-                return 'ongoing'
-        
-        # No dates - determine from tasks
-        project_tasks = self.tasks.all()
-        if not project_tasks.exists():
-            return 'upcoming'
-        
-        total_tasks = project_tasks.count()
-        done_tasks = project_tasks.filter(status='done').count()
-        in_progress_tasks = project_tasks.filter(status='in_progress').count()
-        
-        if done_tasks == total_tasks:
-            return 'completed'
-        elif in_progress_tasks > 0 or done_tasks > 0:
-            return 'ongoing'
-        else:
-            return 'upcoming'
+
 
     
 class Task(models.Model):
