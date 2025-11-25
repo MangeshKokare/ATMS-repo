@@ -103,14 +103,6 @@ def dashboard(request):
         return redirect('accounts:email_not_registered')
 
 
-# Home page view
-def home(request):
-    return render(request, 'accounts/home.html')
-
-
-# View to redirect to the login page
-def home_view(request):
-    return redirect('accounts:login')
 
 
 # Admin Registration View for HOD
@@ -490,13 +482,7 @@ def delete_staff(request, staff_id):
     return redirect('accounts:hod_staff')
 
 
-import csv
-from django.http import HttpResponse, JsonResponse
-from django.contrib import messages
 
-from django.contrib.auth.decorators import login_required
-from django.contrib import messages
-from django.shortcuts import redirect
 import csv
 
 @login_required
@@ -840,10 +826,6 @@ def upload_users_csv(request):
     return redirect('/accounts/create_user/')
 
 
-from django.shortcuts import render
-from django.contrib.auth.decorators import login_required
-from django.db.models import Q  # 🔹 Important: Q for complex filters
-from .models import Project, CustomUser, School, Campus, Department
 
 @login_required
 def hod_projects(request):
@@ -1381,8 +1363,6 @@ def delete_team(request, team_id):
 
 
 
-def staff_dashboard_3(request):
-    return render(request, "accounts/staff_dashboard_3.html")
 
 @login_required
 def create_project(request):
@@ -2884,6 +2864,7 @@ def all_projects(request):
         'projects': Project.objects.all()
     }
 
+from .forms import CampusForm
 from .models import Campus, School, Department 
 def create_campus(request):
     if request.method == "POST":
@@ -3526,6 +3507,7 @@ def coordinator_dashboard(request):
     }
 
     return render(request, "accounts/summary.html", context)
+
 @login_required
 def coordinator_dashboard_1(request):
     user = request.user
