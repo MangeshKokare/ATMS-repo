@@ -340,41 +340,54 @@ def hod_dashboard(request):
     return render(request, "accounts/summary.html", context)
 
 
-
-
 @login_required
 def hod_staff(request):
     user = request.user
 
-    # HOD's departments, schools, campuses
+    # ----------------------------------------------------
+    # HOD: Departments, Schools, Campuses
+    # ----------------------------------------------------
     hod_departments = user.department.all()
     hod_schools = School.objects.filter(department__in=hod_departments).distinct()
     hod_campuses = Campus.objects.filter(school__in=hod_schools).distinct()
 
-    # Staff in HOD's departments
-    staff = CustomUser.objects.filter(role='staff', department__in=hod_departments).distinct()
+    # Staff under HOD's departments
+    staff = CustomUser.objects.filter(
+        role='staff',
+        department__in=hod_departments
+    ).distinct()
 
-    # -----------------------------
-    # Projects based on role
-    # -----------------------------
+    # ----------------------------------------------------
+    # ROLE-BASED PROJECT FILTERING
+    # ----------------------------------------------------
     if user.role == 'hod':
-        # Projects:
-        # - Created by HOD
-        # - Created by staff in HOD's departments
-        # - Belonging to HOD's departments
         projects = Project.objects.filter(
             Q(created_by=user) |
             Q(created_by__in=staff) |
             Q(department__in=hod_departments)
         ).distinct()
-    else:  # Staff (if this view is accessed by staff)
+
+        # ----------------------------------------------------
+        # NEW REQUIREMENT:
+        # SHOW ONLY TEAMS IN THE LOGGED-IN HOD's SCHOOL
+        # ----------------------------------------------------
+        teams = Team.objects.filter(
+            project__department__school=user.school
+        ).distinct().select_related("project", "head").prefetch_related("members")
+
+    else:
+        # STAFF: show only their own projects
         projects = Project.objects.filter(
             Q(tasks__assigned_to=user) | Q(created_by=user)
         ).distinct()
 
-    # -----------------------------
-    # Handle staff creation
-    # -----------------------------
+        teams = Team.objects.filter(
+            project__in=projects
+        ).distinct().select_related("project", "head").prefetch_related("members")
+
+    # ----------------------------------------------------
+    # HANDLE STAFF CREATION
+    # ----------------------------------------------------
     if request.method == "POST":
         email = request.POST.get("email")
         username = request.POST.get("username")
@@ -385,12 +398,12 @@ def hod_staff(request):
         school_id = request.POST.get("school")
         dept_ids = request.POST.getlist("department")
 
-        # Check duplicate email
+        # Email must be unique
         if CustomUser.objects.filter(email=email).exists():
             messages.error(request, "This email already exists!")
             return redirect('accounts:hod_staff')
 
-        # Create staff
+        # Create staff user
         new_staff = CustomUser.objects.create(
             email=email,
             username=email,
@@ -402,7 +415,7 @@ def hod_staff(request):
             school_id=school_id,
         )
 
-        # Filter departments to HOD's departments only
+        # Only allow departments belonging to this HOD
         allowed_dept_ids = [str(d.id) for d in hod_departments]
         filtered_dept_ids = [int(did) for did in dept_ids if did in allowed_dept_ids]
         new_staff.department.set(filtered_dept_ids)
@@ -416,8 +429,10 @@ def hod_staff(request):
         "campuses": hod_campuses,
         "schools": hod_schools,
         "departments": hod_departments,
-        "projects": projects,  # Role-wise projects
+        "projects": projects,
+        "teams": teams,  # ⬅ ADDED TO CONTEXT
     })
+
 
 
 @login_required
@@ -1889,51 +1904,65 @@ def delete_subtask(request, pk):
     messages.success(request, 'Subtask deleted successfully!')
     
     return redirect(request.META.get('HTTP_REFERER', 'accounts:board_page'))
-
-
-
+@login_required
 def profile_view(request):
     user = request.user
 
-    # -----------------------------
-    # Projects based on role
-    # -----------------------------
-    if user.role == 'hod':
+    # --------------------------------------------------------
+    # ROLE-BASED PROJECT FILTERING (same logic as other views)
+    # --------------------------------------------------------
+    if user.role == 'coordinator':
+        projects = Project.objects.filter(
+            department__campus=user.campus
+        ).distinct()
+
+        allowed_users = CustomUser.objects.filter(
+            campus=user.campus,
+            role__in=['staff', 'student']
+        ).distinct()
+
+    elif user.role == 'hod':
         hod_departments = user.department.all()
-        staff_qs = CustomUser.objects.filter(role='staff', department__in=hod_departments).distinct()
 
-        # Projects:
-        # - Created by HOD
-        # - Created by staff in HOD's departments
-        # - Belonging to HOD's departments
         projects = Project.objects.filter(
-            Q(created_by=user) |
-            Q(created_by__in=staff_qs) |
-            Q(department__in=hod_departments)
+            department__school=user.school
         ).distinct()
 
-    else:  # Staff
-        projects = Project.objects.filter(
-            Q(tasks__assigned_to=user) | Q(created_by=user)
+        allowed_users = CustomUser.objects.filter(
+            school=user.school,
+            role__in=['staff', 'student']
         ).distinct()
 
-    # -----------------------------
-    # Current project selection
-    # -----------------------------
+    else:  # staff
+        projects = Project.objects.filter(
+            department__in=user.department.all()
+        ).distinct()
+
+        allowed_users = CustomUser.objects.filter(
+            department__in=user.department.all(),
+            role__in=['staff', 'student']
+        ).distinct()
+
+    # --------------------------------------------------------
+    # CURRENT PROJECT SELECTION
+    # --------------------------------------------------------
     project_id = request.GET.get('project')
-    current_project = get_object_or_404(projects, id=project_id) if project_id else None
+    current_project = None
 
-    # -----------------------------
-    # Tasks for selected project or all visible projects
-    # -----------------------------
+    if project_id:
+        current_project = get_object_or_404(projects, id=project_id)
+
+    # --------------------------------------------------------
+    # TASKS: filter by current project or all visible projects
+    # --------------------------------------------------------
     if current_project:
         tasks = Task.objects.filter(project=current_project)
     else:
         tasks = Task.objects.filter(project__in=projects)
 
-    # -----------------------------
-    # Filters
-    # -----------------------------
+    # --------------------------------------------------------
+    # APPLY SEARCH + FILTERS
+    # --------------------------------------------------------
     query = request.GET.get('q')
     status = request.GET.get('status')
     priority = request.GET.get('priority')
@@ -1941,34 +1970,33 @@ def profile_view(request):
 
     if query:
         tasks = tasks.filter(title__icontains=query)
+
     if status:
         tasks = tasks.filter(status=status)
+
     if priority:
         tasks = tasks.filter(priority=priority)
+
     if team_filter:
         tasks = tasks.filter(team__id=team_filter)
 
-    # -----------------------------
-    # Users and teams (only staff from the same department)
-    # -----------------------------
-    staff_and_students = CustomUser.objects.filter(
-        role='staff', department__in=request.user.department.all()
-    )
+    # --------------------------------------------------------
+    # TEAMS: only teams connected to visible projects
+    # --------------------------------------------------------
+    teams = Team.objects.filter(
+        project__in=projects
+    ).select_related("project", "head").prefetch_related("members").distinct()
 
-    teams = Team.objects.prefetch_related(
-        Prefetch("members", queryset=CustomUser.objects.all())
-    ).all()
-
-    # -----------------------------
-    # Context
-    # -----------------------------
+    # --------------------------------------------------------
+    # CONTEXT
+    # --------------------------------------------------------
     context = {
         'projects': projects,
         'tasks': tasks,
         'teams': teams,
         'current_project': current_project,
         'active_tab': 'backlog',
-        'staff_and_students': staff_and_students,  # Pass filtered staff members
+        'staff_and_students': allowed_users,   # UPDATED & FIXED
     }
 
     return render(request, "accounts/profile.html", context)
@@ -2440,125 +2468,202 @@ def student_dashboard(request):
     return render(request, 'accounts/student_dashboard.html', context)
 
 @login_required
-def teams_page(request): 
-    """
-    Display all teams in an expanded view with detailed information
-    """
-    # Get all teams based on user role
-    if request.user.role == 'hod':
-        teams = Team.objects.all().select_related('project', 'head').prefetch_related('members')
-        projects = Project.objects.all()
-    elif request.user.role == 'coordinator':
-        teams = Team.objects.all().select_related('project', 'head').prefetch_related('members')
-        projects = Project.objects.all()
-    else:  # staff
-        # Get teams where user is head or member
-        teams = Team.objects.filter(
-            models.Q(head=request.user) | models.Q(members=request.user)
-        ).distinct().select_related('project', 'head').prefetch_related('members')
+def teams_page(request):
+
+    # --------------------------------------------------------
+    # ROLE-BASED PROJECT FILTERING (M2M)
+    # --------------------------------------------------------
+    if request.user.role == 'coordinator':
         projects = Project.objects.filter(
-            models.Q(teams__head=request.user) | models.Q(teams__members=request.user)
+            department__campus=request.user.campus
         ).distinct()
-    
-    # Get all staff and students for the team modal
-    from django.contrib.auth import get_user_model
-    User = get_user_model()
-    staff_and_students = User.objects.filter(role__in=['staff', 'student']).order_by('email')
-    
-    # Calculate statistics
+
+        users = CustomUser.objects.filter(
+            campus=request.user.campus,
+            role__in=['staff', 'student']
+        ).distinct().order_by('email')
+
+    elif request.user.role == 'hod':
+        projects = Project.objects.filter(
+            department__school=request.user.school
+        ).distinct()
+
+        users = CustomUser.objects.filter(
+            school=request.user.school,
+            role__in=['staff', 'student']
+        ).distinct().order_by('email')
+
+    else:  # staff
+        projects = Project.objects.filter(
+            department__in=request.user.department.all()
+        ).distinct()
+
+        users = CustomUser.objects.filter(
+            department__in=request.user.department.all(),
+            role__in=['staff', 'student']
+        ).distinct().order_by('email')
+
+
+
+    # --------------------------------------------------------
+    # TEAMS CONNECTED TO THESE PROJECTS
+    # --------------------------------------------------------
+    teams = Team.objects.filter(
+        project__in=projects
+    ).select_related('project', 'head').prefetch_related('members')
+
+
+    # --------------------------------------------------------
+    # TEAM STATISTICS
+    # --------------------------------------------------------
     teams_with_projects = teams.filter(project__isnull=False).count()
     total_team_heads = teams.values('head').distinct().count()
-    
-    # Calculate total unique members across all teams
+
+    # Unique members
     all_member_ids = set()
     for team in teams:
-        all_member_ids.add(team.head.id)
+        if team.head:
+            all_member_ids.add(team.head.id)
         all_member_ids.update(team.members.values_list('id', flat=True))
+
     total_members = len(all_member_ids)
-    
+
+
     context = {
         'teams': teams,
         'projects': projects,
-        'staff_and_students': staff_and_students,
+        'staff_and_students': users,  # UPDATED
         'teams_with_projects': teams_with_projects,
         'total_team_heads': total_team_heads,
         'total_members': total_members,
     }
-    
+
     return render(request, 'accounts/teams_page.html', context)
+
 
 
 @login_required
 def projects_page(request):
-    """
-    Display all projects with dynamic status and detailed view.
-    """
 
-    # Filter projects based on user role
-    if request.user.role in ['hod', 'coordinator']:
-        projects = Project.objects.all().prefetch_related('teams', 'tasks')
-    else:  # staff
+    # --------------------------------------------------------
+    # ROLE-BASED PROJECT FILTERING (M2M via Department)
+    # --------------------------------------------------------
+    if request.user.role == 'coordinator':
         projects = Project.objects.filter(
-            models.Q(teams__head=request.user) |
-            models.Q(teams__members=request.user)
+            department__campus=request.user.campus
         ).distinct().prefetch_related('teams', 'tasks')
 
-    # Get staff + students for UI modals
-    from django.contrib.auth import get_user_model
-    User = get_user_model()
-    
-    staff_and_students = User.objects.filter(
-        role__in=['staff', 'student']
-    ).order_by('email')
+        users = CustomUser.objects.filter(
+            campus=request.user.campus,
+            role__in=['staff', 'student']
+        ).distinct().order_by('email')
 
-    # Get team list based on role
-    if request.user.role in ['hod', 'coordinator']:
-        teams = Team.objects.all().select_related('project', 'head').prefetch_related('members')
-    else:
-        teams = Team.objects.filter(
-            models.Q(head=request.user) |
-            models.Q(members=request.user)
-        ).distinct().select_related('project', 'head').prefetch_related('members')
+    elif request.user.role == 'hod':
+        projects = Project.objects.filter(
+            department__school=request.user.school
+        ).distinct().prefetch_related('teams', 'tasks')
 
-    # -------------------------
+        users = CustomUser.objects.filter(
+            school=request.user.school,
+            role__in=['staff', 'student']
+        ).distinct().order_by('email')
+
+    else:  # staff
+        projects = Project.objects.filter(
+            department__in=request.user.department.all()
+        ).distinct().prefetch_related('teams', 'tasks')
+
+        users = CustomUser.objects.filter(
+            department__in=request.user.department.all(),
+            role__in=['staff', 'student']
+        ).distinct().order_by('email')
+
+
+
+    # --------------------------------------------------------
+    # TEAMS BASED ON FILTERED PROJECTS
+    # --------------------------------------------------------
+    project_ids = projects.values_list('id', flat=True)
+
+    teams = Team.objects.filter(
+        project_id__in=project_ids
+    ).select_related('project', 'head').prefetch_related('members')
+
+
+    # --------------------------------------------------------
     # PROJECT STATUS COUNTERS
-    # -------------------------
-    ongoing_projects = 0
-    completed_projects = 0
-    upcoming_projects = 0
+    # --------------------------------------------------------
+    ongoing = completed = upcoming = 0
 
     for project in projects:
-        status = project.status   # <-- Uses @property
+        if project.status == "ongoing":
+            ongoing += 1
+        elif project.status == "completed":
+            completed += 1
+        elif project.status == "upcoming":
+            upcoming += 1
 
-        if status == "ongoing":
-            ongoing_projects += 1
-        elif status == "completed":
-            completed_projects += 1
-        elif status == "upcoming":
-            upcoming_projects += 1
 
     context = {
         'projects': projects,
         'teams': teams,
-        'staff_and_students': staff_and_students,
-        'ongoing_projects': ongoing_projects,
-        'completed_projects': completed_projects,
-        'upcoming_projects': upcoming_projects,
+        'staff_and_students': users,  # UPDATED
+        'ongoing_projects': ongoing,
+        'completed_projects': completed,
+        'upcoming_projects': upcoming,
     }
 
     return render(request, 'accounts/projects_page.html', context)
+
+
     
 @login_required
 def create_team(request):
-    """Create a new team with selected head and project"""
+    """Create a new team with role-based access and project/user filtering."""
 
+    # ---------------------------------------------------
+    # 1. FETCH PROJECTS BASED ON USER ROLE
+    # ---------------------------------------------------
+    if request.user.role == 'coordinator':
+        allowed_projects = Project.objects.filter(
+            department__campus=request.user.campus
+        ).distinct()
+
+        allowed_users = CustomUser.objects.filter(
+            campus=request.user.campus,
+            role__in=['staff', 'student']
+        ).distinct()
+
+    elif request.user.role == 'hod':
+        allowed_projects = Project.objects.filter(
+            department__school=request.user.school
+        ).distinct()
+
+        allowed_users = CustomUser.objects.filter(
+            school=request.user.school,
+            role__in=['staff', 'student']
+        ).distinct()
+
+    else:  # staff
+        allowed_projects = Project.objects.filter(
+            department=request.user.department
+        ).distinct()
+
+        allowed_users = CustomUser.objects.filter(
+            department=request.user.department,
+            role__in=['staff', 'student']
+        ).distinct()
+
+    # ---------------------------------------------------
+    # 2. PROCESS FORM SUBMISSION
+    # ---------------------------------------------------
     if request.method == "POST":
         name = request.POST.get("name", "").strip()
         project_id = request.POST.get("project")
         head_id = request.POST.get("head")
         member_ids = request.POST.getlist("members")
 
-        # VALIDATION
+        # REQUIRED FIELDS VALIDATION
         if not name:
             messages.error(request, "Team name is required.")
             return redirect(request.META.get("HTTP_REFERER", "accounts:teams"))
@@ -2572,21 +2677,47 @@ def create_team(request):
             return redirect(request.META.get("HTTP_REFERER", "accounts:teams"))
 
         try:
+            # ---------------------------------------------------
+            # 3. VALIDATE PROJECT ACCESS
+            # ---------------------------------------------------
+            if not allowed_projects.filter(id=project_id).exists():
+                messages.error(request, "You are not allowed to create teams for this project.")
+                return redirect(request.META.get("HTTP_REFERER", "accounts:teams"))
+
             project = Project.objects.get(id=project_id)
+
+            # ---------------------------------------------------
+            # 4. VALIDATE HEAD ACCESS
+            # ---------------------------------------------------
+            if not allowed_users.filter(id=head_id).exists():
+                messages.error(request, "You cannot select this user as a team lead.")
+                return redirect(request.META.get("HTTP_REFERER", "accounts:teams"))
+
             head = CustomUser.objects.get(id=head_id)
 
-            # ✅ PREFIX TEAM NAME WITH PROJECT KEYWORD
+            # ---------------------------------------------------
+            # 5. VALIDATE MEMBER ACCESS
+            # ---------------------------------------------------
+            for mid in member_ids:
+                if not allowed_users.filter(id=mid).exists():
+                    messages.error(request, "One or more selected members are not allowed.")
+                    return redirect(request.META.get("HTTP_REFERER", "accounts:teams"))
+
+            # ---------------------------------------------------
+            # 6. PREFIX NAME USING PROJECT KEYWORD
+            # ---------------------------------------------------
             keyword = (project.keyword or "").strip()
             final_name = f"{keyword} - {name}" if keyword else name
 
+            # CREATE TEAM
             team = Team.objects.create(
-                name=final_name,   # ✅ UPDATED NAME
+                name=final_name,
                 project=project,
                 staff=request.user,
                 head=head
             )
 
-            # MEMBERS INCLUDING HEAD
+            # ALWAYS INCLUDE HEAD AS MEMBER
             final_member_ids = set(member_ids)
             final_member_ids.add(str(head_id))
 
@@ -2595,23 +2726,24 @@ def create_team(request):
 
             messages.success(
                 request,
-                f"Team '{final_name}' created successfully! Team lead '{head.username}' has been added as a member."
+                f"Team '{final_name}' created successfully! Team lead '{head.username}' added as member."
             )
             return redirect(request.META.get("HTTP_REFERER", "accounts:teams"))
 
         except Project.DoesNotExist:
             messages.error(request, "Selected project does not exist.")
-            return redirect(request.META.get("HTTP_REFERER", "accounts:teams"))
-
         except CustomUser.DoesNotExist:
-            messages.error(request, "Selected team lead does not exist.")
-            return redirect(request.META.get("HTTP_REFERER", "accounts:teams"))
-
+            messages.error(request, "Selected head/member does not exist.")
         except Exception as e:
             messages.error(request, f"Error creating team: {str(e)}")
-            return redirect(request.META.get("HTTP_REFERER", "accounts:teams"))
 
+        return redirect(request.META.get("HTTP_REFERER", "accounts:teams"))
+
+    # ---------------------------------------------------
+    # 7. DEFAULT REDIRECT
+    # ---------------------------------------------------
     return redirect("accounts:teams")
+
 
 
 @login_required
