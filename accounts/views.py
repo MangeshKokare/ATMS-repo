@@ -963,16 +963,60 @@ def edit_task(request, task_id):
 
 @login_required
 def delete_task(request, task_id):
+    """Delete a task"""
     task = get_object_or_404(Task, id=task_id)
-
-    # Only staff or HOD/admin can delete tasks
-    if request.user.role not in ['admin', 'hod', 'staff']:
-        messages.error(request, "You do not have permission to delete this task.")
-        return redirect('accounts:hod_projects')
-
+    
+    # Check permissions
+    if request.user.role == 'coordinator':
+        messages.error(request, 'Coordinators cannot delete tasks')
+        return redirect(request.META.get('HTTP_REFERER', 'accounts:board_page'))
+    
+    if request.user.role == 'staff' and task.assigned_by != request.user:
+        messages.error(request, 'You can only delete tasks you created')
+        return redirect(request.META.get('HTTP_REFERER', 'accounts:board_page'))
+    
     task.delete()
-    messages.success(request, "Task deleted successfully!")
-    return redirect('accounts:hod_projects')
+    messages.success(request, 'Task deleted successfully!')
+    
+    return redirect(request.META.get('HTTP_REFERER', 'accounts:board_page'))
+
+
+@login_required
+def duplicate_task(request, task_id):
+    """Duplicate a task"""
+    original_task = get_object_or_404(Task, id=task_id)
+    
+    # Check permissions
+    if request.user.role == 'coordinator':
+        messages.error(request, 'Coordinators cannot duplicate tasks')
+        return redirect(request.META.get('HTTP_REFERER', 'accounts:board_page'))
+    
+    # Create duplicate
+    new_task = Task.objects.create(
+        title=f"{original_task.title} (Copy)",
+        description=original_task.description,
+        priority=original_task.priority,
+        status='to_do',
+        due_date=original_task.due_date,
+        assigned_to=original_task.assigned_to,
+        assigned_by=request.user,
+        project=original_task.project,
+        team=original_task.team,
+    )
+    
+    # Duplicate subtasks
+    for subtask in original_task.subtask_set.all():
+        SubTask.objects.create(
+            task=new_task,
+            title=subtask.title,
+            description=subtask.description,
+            deadline=subtask.deadline,
+            status='todo',
+        )
+    
+    messages.success(request, f'Task duplicated successfully! New task: {new_task.title}')
+    
+    return redirect(request.META.get('HTTP_REFERER', 'accounts:board_page'))
 
 @login_required
 def hod_add_project(request):
@@ -1666,6 +1710,20 @@ def board_page(request):
             tasks = Task.objects.filter(project__in=projects)
 
     # -----------------------------
+    # ANNOTATE TASKS WITH EXTRA DATA
+    # -----------------------------
+    tasks = tasks.annotate(
+        completed_subtasks_count=Count(
+            'subtask',
+            filter=Q(subtask__status='done')
+        ),
+        total_subtasks_count=Count('subtask')
+    ).select_related('assigned_to', 'team', 'project').prefetch_related(
+        'subtask_set',
+        'comment_set__user'
+    )
+
+    # -----------------------------
     # FILTERS
     # -----------------------------
     q = request.GET.get("q")
@@ -1680,14 +1738,42 @@ def board_page(request):
         tasks = tasks.filter(priority=priority)
 
     # -----------------------------
-    # KANBAN COLUMNS
+    # ADD COMPUTED PROPERTIES TO TASKS
+    # -----------------------------
+    today = timezone.now().date()
+    tasks_list = []
+    
+    for task in tasks:
+        # Calculate subtask completion percentage
+        if task.total_subtasks_count > 0:
+            task.subtask_completion_percentage = int(
+                (task.completed_subtasks_count / task.total_subtasks_count) * 100
+            )
+        else:
+            task.subtask_completion_percentage = 0
+        
+        # Check if task is overdue
+        task.is_overdue = task.due_date < today if task.due_date else False
+        
+        # Attachment count (set to 0 if you don't have attachments yet)
+        task.attachment_count = 0
+        
+        tasks_list.append(task)
+
+    # -----------------------------
+    # KANBAN COLUMNS (ALL 4 STATUSES)
     # -----------------------------
     kanban_tasks = {
-        'to_do': tasks.filter(status='to_do'),
-        'in_progress': tasks.filter(status='in_progress'),
-        'in_review': tasks.filter(status='in_review'),
-        'done': tasks.filter(status='done'),
+        'to_do': [t for t in tasks_list if t.status == 'to_do'],
+        'in_progress': [t for t in tasks_list if t.status == 'in_progress'],
+        'in_review': [t for t in tasks_list if t.status == 'in_review'],
+        'done': [t for t in tasks_list if t.status == 'done'],
     }
+
+    # -----------------------------
+    # CALCULATE HIGH PRIORITY COUNT
+    # -----------------------------
+    high_priority_count = sum(1 for t in tasks_list if t.priority == 'high')
 
     # -----------------------------
     # CONTEXT
@@ -1696,10 +1782,11 @@ def board_page(request):
         'projects': projects,
         'staff_and_students': staff_and_students,
         'teams': teams,
-        'tasks': tasks,
+        'tasks': tasks_list,
         'kanban_tasks': kanban_tasks,
         'current_project': current_project,
         'active_tab': 'board',
+        'high_priority_count': high_priority_count,
     }
 
     return render(request, 'accounts/board.html', context)
@@ -1707,10 +1794,10 @@ def board_page(request):
 
 
 
-
 from django.views.decorators.http import require_POST
 from .models import Project, Task, SubTask, Comment
 
+@login_required
 @require_POST
 def add_subtask(request):
     task_id = request.POST.get('task_id')
@@ -1727,8 +1814,10 @@ def add_subtask(request):
         deadline=deadline if deadline else None
     )
 
+    messages.success(request, 'Subtask added successfully!')
     return redirect(request.META.get('HTTP_REFERER', 'accounts:board_page'))
 
+@login_required
 @require_POST
 def add_comment(request, task_id):
     task = get_object_or_404(Task, id=task_id)
@@ -1740,10 +1829,30 @@ def add_comment(request, task_id):
             user=request.user,
             text=comment_text   # DO NOT prepend text — template handles coordinator label
         )
+        messages.success(request, 'Comment added successfully!')
+    else:
+        messages.error(request, 'Comment cannot be empty')
 
     return redirect(request.META.get('HTTP_REFERER', '/'))
 
+@login_required
+@require_POST
+def edit_comment(request, comment_id):
+    comment = get_object_or_404(Comment, id=comment_id, user=request.user)
 
+    new_text = request.POST.get('comment', '').strip()
+
+    if new_text:
+        comment.text = new_text
+        comment.save()
+        messages.success(request, "Comment updated successfully.")
+    else:
+        messages.error(request, "Comment cannot be empty.")
+
+    return redirect(request.META.get("HTTP_REFERER", "/"))
+
+
+@login_required
 def edit_subtask(request, pk):
     subtask = get_object_or_404(SubTask, pk=pk)
 
@@ -1760,9 +1869,27 @@ def edit_subtask(request, pk):
         subtask.status = request.POST.get('status', subtask.status)
         subtask.save()
 
+        messages.success(request, 'Subtask updated successfully!')
         return redirect(request.META.get('HTTP_REFERER', '/'))
 
     return redirect(request.META.get('HTTP_REFERER', '/'))
+
+
+@login_required
+def delete_subtask(request, pk):
+    """Delete a subtask"""
+    subtask = get_object_or_404(SubTask, pk=pk)
+    
+    # Check permissions
+    if request.user.role == 'coordinator':
+        messages.error(request, 'Coordinators cannot delete subtasks')
+        return redirect(request.META.get('HTTP_REFERER', 'accounts:board_page'))
+    
+    subtask.delete()
+    messages.success(request, 'Subtask deleted successfully!')
+    
+    return redirect(request.META.get('HTTP_REFERER', 'accounts:board_page'))
+
 
 
 def profile_view(request):

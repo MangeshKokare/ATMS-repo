@@ -137,4 +137,13 @@ urlpatterns = [
     path('teams/', views.teams_page, name='teams_list'),
     path('projects/', views.projects_page, name='projects_list'),
 
+
+ # Task operations
+    path('task/<int:task_id>/duplicate/', views.duplicate_task, name='duplicate_task'),
+    
+    # Subtask operations
+    path('subtask/<int:pk>/delete/', views.delete_subtask, name='delete_subtask'),
+    path("comment/<int:comment_id>/edit/", views.edit_comment, name="edit_comment"),
+
+
 ] 
