@@ -3183,73 +3183,91 @@ def create_campus(request):
 
 # Campus CRUD
 def campus_crud(request):
-    # Add campus
     if request.method == "POST":
         name = request.POST.get("name")
         if name:
-            Campus.objects.create(name=name)
-            return redirect('accounts:campus_crud')
+            if Campus.objects.filter(name__iexact=name.strip()).exists():
+                messages.error(request, "Campus with this name already exists.")
+            else:
+                Campus.objects.create(name=name.strip())
+                messages.success(request, "Campus added successfully.")
+        return redirect('accounts:campus_crud')
 
-    # GET request: show all campuses
     campuses = Campus.objects.all()
     return render(request, 'accounts/campus_crud.html', {'campuses': campuses})
 
 
-# Delete campus
 def delete_campus(request, campus_id):
     campus = get_object_or_404(Campus, id=campus_id)
     campus.delete()
+    messages.success(request, "Campus deleted successfully.")
     return redirect('accounts:campus_crud')
 
 
-# Edit campus
 def edit_campus(request, campus_id):
     campus = get_object_or_404(Campus, id=campus_id)
 
     if request.method == "POST":
         name = request.POST.get("name")
         if name:
-            campus.name = name
-            campus.save()
+            # Check for duplicate excluding current
+            if Campus.objects.filter(name__iexact=name.strip()).exclude(id=campus_id).exists():
+                messages.error(request, "Another campus with this name already exists.")
+            else:
+                campus.name = name.strip()
+                campus.save()
+                messages.success(request, "Campus updated successfully.")
             return redirect('accounts:campus_crud')
 
     return render(request, 'accounts/edit_campus.html', {'campus': campus})
 
+
 # School CRUD
 def school_crud(request):
     if request.method == "POST":
-        name = request.POST.get("name")
+        name = request.POST.get("name").strip()
         campus_id = request.POST.get("campus")
+
         if name and campus_id:
             campus = get_object_or_404(Campus, id=campus_id)
-            School.objects.create(name=name, campus=campus)
-            return redirect('accounts:school_crud')
+
+            if School.objects.filter(name__iexact=name, campus=campus).exists():
+                messages.error(request, "School already exists under this Campus.")
+            else:
+                School.objects.create(name=name, campus=campus)
+                messages.success(request, "School added successfully.")
+
+        return redirect('accounts:school_crud')
 
     schools = School.objects.select_related('campus').all()
     campuses = Campus.objects.all()
     return render(request, 'accounts/school_crud.html', {'schools': schools, 'campuses': campuses})
 
 
-# Delete school
 def delete_school(request, school_id):
     school = get_object_or_404(School, id=school_id)
     school.delete()
+    messages.success(request, "School deleted successfully.")
     return redirect('accounts:school_crud')
 
 
-# Edit school
 def edit_school(request, school_id):
     school = get_object_or_404(School, id=school_id)
     campuses = Campus.objects.all()
 
     if request.method == "POST":
-        name = request.POST.get("name")
+        name = request.POST.get("name").strip()
         campus_id = request.POST.get("campus")
+
         if name and campus_id:
             campus = get_object_or_404(Campus, id=campus_id)
-            school.name = name
-            school.campus = campus
-            school.save()
+            if School.objects.filter(name__iexact=name, campus=campus).exclude(id=school_id).exists():
+                messages.error(request, "Another school with this name already exists under this campus.")
+            else:
+                school.name = name
+                school.campus = campus
+                school.save()
+                messages.success(request, "School updated successfully.")
             return redirect('accounts:school_crud')
 
     return render(request, 'accounts/edit_school.html', {'school': school, 'campuses': campuses})
@@ -3265,26 +3283,48 @@ def department_crud(request):
     if request.method == "POST" and 'add_department' in request.POST:
         campus_id = request.POST.get("campus")
         school_id = request.POST.get("school")
-        department_name = request.POST.get("name")
+        department_name = request.POST.get("name").strip()
 
         if campus_id and school_id and department_name:
             campus = Campus.objects.get(id=campus_id)
             school = School.objects.get(id=school_id)
-            Department.objects.create(
-                name=department_name,
+
+            if Department.objects.filter(
+                name__iexact=department_name,
                 campus=campus,
                 school=school
-            )
+            ).exists():
+                messages.error(request, "Department already exists under this Campus & School.")
+            else:
+                Department.objects.create(
+                    name=department_name,
+                    campus=campus,
+                    school=school
+                )
+                messages.success(request, "Department added successfully.")
         return redirect('accounts:department_crud')
 
     # EDIT Department
     if request.method == "POST" and 'edit_department' in request.POST:
         dept_id = request.POST.get("dept_id")
         department = get_object_or_404(Department, id=dept_id)
-        department.name = request.POST.get("name")
-        department.campus = Campus.objects.get(id=request.POST.get("campus"))
-        department.school = School.objects.get(id=request.POST.get("school"))
-        department.save()
+
+        name = request.POST.get("name").strip()
+        campus = Campus.objects.get(id=request.POST.get("campus"))
+        school = School.objects.get(id=request.POST.get("school"))
+
+        if Department.objects.filter(
+            name__iexact=name,
+            campus=campus,
+            school=school
+        ).exclude(id=dept_id).exists():
+            messages.error(request, "Another department with this name already exists under this Campus & School.")
+        else:
+            department.name = name
+            department.campus = campus
+            department.school = school
+            department.save()
+            messages.success(request, "Department updated successfully.")
         return redirect('accounts:department_crud')
 
     # DELETE Department
@@ -3292,6 +3332,7 @@ def department_crud(request):
         dept_id = request.POST.get("dept_id")
         department = get_object_or_404(Department, id=dept_id)
         department.delete()
+        messages.success(request, "Department deleted successfully.")
         return redirect('accounts:department_crud')
 
     context = {
@@ -3301,17 +3342,30 @@ def department_crud(request):
     }
     return render(request, 'accounts/department_crud.html', context)
 
+
 def edit_department(request, id):
     department = Department.objects.get(id=id)
     campuses = Campus.objects.all()
     schools = School.objects.all()
 
     if request.method == 'POST':
-        department.name = request.POST.get('name')
-        department.campus = Campus.objects.get(id=request.POST.get('campus'))
-        department.school = School.objects.get(id=request.POST.get('school'))
-        department.save()
-        return redirect('accounts:department_crud')  
+        name = request.POST.get('name').strip()
+        campus = Campus.objects.get(id=request.POST.get('campus'))
+        school = School.objects.get(id=request.POST.get('school'))
+
+        if Department.objects.filter(
+            name__iexact=name,
+            campus=campus,
+            school=school
+        ).exclude(id=department.id).exists():
+            messages.error(request, "Another department with this name already exists under this Campus & School.")
+        else:
+            department.name = name
+            department.campus = campus
+            department.school = school
+            department.save()
+            messages.success(request, "Department updated successfully.")
+        return redirect('accounts:department_crud')
 
     context = {
         'department': department,
@@ -3319,6 +3373,7 @@ def edit_department(request, id):
         'schools': schools
     }
     return render(request, 'accounts/edit_department.html', context)
+
 
 
 def delete_department(request, id):
@@ -3556,6 +3611,7 @@ def get_current_project(request, projects):
 def delete_user(request, user_id):
     user = get_object_or_404(CustomUser, id=user_id)
     user.delete()
+    messages.success(request, "User deleted successfully.")
     return redirect('accounts:create_user')
 
 def create_campus(request):

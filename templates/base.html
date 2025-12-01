@@ -854,48 +854,68 @@
   <div class="main-content" id="mainContent">
     <div class="top-navbar mb-4">
 
-
+      <!-- LEFT SECTION: Sidebar toggle + Create Task -->
       <div class="d-flex align-items-center flex-wrap">
-        <!-- Unhide Sidebar Button (shown when sidebar is hidden) -->
+        <!-- Unhide Sidebar Button -->
         <button class="sidebar-unhide-btn" id="sidebarUnhideBtn" onclick="showSidebar()">
           <i class="fas fa-arrow-right"></i> 
         </button>
 
         {% if request.user.role != 'student' and request.user.role != 'coordinator' %}
-        
-        <button class="btn create-task-btn" data-bs-toggle="modal" data-bs-target="#createTaskModal">
+        <button class="btn create-task-btn ms-2" data-bs-toggle="modal" data-bs-target="#createTaskModal">
           <i class="fas fa-plus"></i> Create Task
         </button>
         {% endif %}
-
       </div>
-      <div class="d-flex align-items-center flex-wrap">
+
+      <!-- RIGHT SECTION: Hello text + Profile dropdown -->
+      <div class="d-flex align-items-center gap-3">
+        
+        <!-- Hello Message -->
+        <div>
+          <strong>Hello, {{ request.user.email }}</strong>
+        </div>
+
+        <!-- Profile Dropdown -->
         <div class="dropdown">
           <a href="#" class="d-flex align-items-center text-decoration-none dropdown-toggle"
-             id="profileDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+            id="profileDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+
             <div class="profile-icon">
               <i class="fas fa-user"></i>
             </div>
+
           </a>
+
           <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="profileDropdown">
             <li class="dropdown-header">
               <strong>{{ request.user.get_full_name|default:request.user.username }}</strong><br>
               <small class="text-muted">{{ request.user.email }}</small>
             </li>
+
             <li><hr class="dropdown-divider"></li>
-            <li><a class="dropdown-item" href="{% url 'accounts:profile' %}"><i class="fas fa-user me-2"></i> Profile</a></li>
+
             <li>
-              <form id="logoutForm" action="{% url 'accounts:logout' %}" method="post" style="margin: 0; padding: 0;">
+              <a class="dropdown-item" href="{% url 'accounts:profile' %}">
+                <i class="fas fa-user me-2"></i> Profile
+              </a>
+            </li>
+
+            <li>
+              <form id="logoutForm" action="{% url 'accounts:logout' %}" method="post" style="margin:0;">
                 {% csrf_token %}
-                <button type="submit" class="dropdown-item text-danger" style="border: none; background: none; width: 100%; text-align: left;">
+                <button type="submit" class="dropdown-item text-danger" style="border:none; background:none;">
                   <i class="fas fa-sign-out-alt me-2"></i> Logout
                 </button>
               </form>
             </li>
           </ul>
         </div>
+
       </div>
+
     </div>
+
     {% if request.user.role == "coordinator" %}
     <div class="alert alert-info py-2 px-3 mb-3" style="width: fit-content; border-radius: 6px;">
         <i class="fas fa-user-shield me-2"></i>

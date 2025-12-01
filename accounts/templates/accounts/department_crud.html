@@ -4,6 +4,15 @@
 {% block title %}Department Management{% endblock %}
 
 {% block content %}
+
+
+{% if messages %}
+    {% for msg in messages %}
+        <div class="alert alert-{{ msg.tags }}">{{ msg }}</div>
+    {% endfor %}
+{% endif %}
+
+
 <div class="container-xl mt-4">
 
     <!-- Header Section -->
@@ -222,7 +231,7 @@ document.addEventListener("DOMContentLoaded", function() {
         paging: true,
         ordering: true,
         info: true,
-        pageLength: 5,
+        pageLength: 10,
         lengthChange: false,
         searching: false  
     });

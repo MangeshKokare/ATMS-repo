@@ -142,7 +142,7 @@ class Team(models.Model):
         blank=True,
         related_name='lead_of_teams'
     )
-
+    created_at = models.DateTimeField(auto_now_add=True)   
     def save(self, *args, **kwargs):
         if self.name:
             self.name = self.name.strip().title()
@@ -417,7 +417,7 @@ class Comment(models.Model):
 
     
 class Campus(models.Model):
-    name = models.CharField(max_length=255)
+    name = models.CharField(max_length=255, unique=True)
 
     def __str__(self):
         return self.name
@@ -426,13 +426,24 @@ class School(models.Model):
     name = models.CharField(max_length=255)
     campus = models.ForeignKey(Campus, on_delete=models.CASCADE)
 
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['name', 'campus'], name='unique_school_per_campus')
+        ]
+
     def __str__(self):
         return self.name
+
 
 class Department(models.Model):
     name = models.CharField(max_length=255)
     school = models.ForeignKey(School, on_delete=models.CASCADE)
     campus = models.ForeignKey(Campus, on_delete=models.CASCADE)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['name', 'school', 'campus'], name='unique_department_per_school')
+        ]
 
     def __str__(self):
         return self.name
